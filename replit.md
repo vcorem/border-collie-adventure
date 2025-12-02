@@ -1,11 +1,19 @@
 # Border Collie Adventure - 2D Platformer Game
 
 ## Overview
-A Mario-style 2D platformer game featuring a border collie as the main character and bulldogs as enemies. The player navigates through multiple levels of platforms, collects bones and treats, defeats bulldogs by jumping on them, and reaches the end of each level to progress.
+A Mario-style 2D platformer game featuring a border collie as the main character and bulldogs as enemies. The player navigates through 30 progressively harder levels of platforms, collects bones and treats, defeats bulldogs by jumping on them, and reaches the end of each level to progress. Supports both desktop (keyboard) and mobile (touch) controls.
+
+## GitHub Repository
+https://github.com/vcorem/border-collie-adventure
 
 ## Recent Changes
+- December 2, 2025: 30-level expansion and mobile support
+  - Expanded from 3 to 30 procedurally generated levels
+  - Added touch controls for mobile devices (D-pad on left, jump button on right)
+  - Touch controls appear below game canvas on mobile/touch devices
+  - Procedural level generator with progressive difficulty scaling
+  - Pushed code to GitHub repository
 - December 2, 2025: Multi-level game implementation
-  - Added 3 levels with increasing difficulty
   - Level progression system with "Level Complete" screen
   - Moving platforms with configurable movement patterns
   - Environmental hazards (spikes) that damage player

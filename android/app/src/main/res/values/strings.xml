@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Border Collie Adventure</string>
+    <string name="title_activity_main">Border Collie Adventure</string>
+    <string name="package_name">com.bordercollie.adventure</string>
+    <string name="custom_url_scheme">com.bordercollie.adventure</string>
+</resources>

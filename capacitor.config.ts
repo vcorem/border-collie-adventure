@@ -1,0 +1,15 @@
+import type { CapacitorConfig } from '@capacitor/cli';
+
+const config: CapacitorConfig = {
+  appId: 'com.bordercollie.adventure',
+  appName: 'Border Collie Adventure',
+  webDir: 'dist/public',
+  server: {
+    androidScheme: 'https'
+  },
+  android: {
+    backgroundColor: '#87CEEB'
+  }
+};
+
+export default config;
