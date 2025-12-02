@@ -94,46 +94,56 @@ export function TouchControls({ onControlChange, isLandscape = false }: TouchCon
 
   if (isLandscape) {
     return (
-      <div className="h-full flex flex-col justify-between items-center py-4 px-2 bg-gradient-to-l from-gray-900 to-gray-800 select-none touch-none rounded-lg">
-        <button
-          onTouchStart={handleTouchStart("jump")}
-          onTouchEnd={handleTouchEnd("jump")}
-          onTouchCancel={handleTouchCancel("jump")}
-          onMouseDown={handleMouseDown("jump")}
-          onMouseUp={handleMouseUp("jump")}
-          onMouseLeave={handleMouseUp("jump")}
-          className="w-16 h-16 bg-green-600 hover:bg-green-500 active:bg-green-400 rounded-full flex flex-col items-center justify-center text-white shadow-lg border-4 border-green-400 active:scale-95 transition-transform"
+      <>
+        <div 
+          className="absolute bottom-4 left-4 flex flex-col items-center gap-1 select-none touch-none z-50"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)', paddingLeft: 'env(safe-area-inset-left, 0px)' }}
         >
-          <span className="text-xl">⬆</span>
-          <span className="text-[10px] font-bold">JUMP</span>
-        </button>
-        
-        <div className="flex flex-col items-center gap-1">
-          <button
-            onTouchStart={handleTouchStart("left")}
-            onTouchEnd={handleTouchEnd("left")}
-            onTouchCancel={handleTouchCancel("left")}
-            onMouseDown={handleMouseDown("left")}
-            onMouseUp={handleMouseUp("left")}
-            onMouseLeave={handleMouseUp("left")}
-            className="w-14 h-14 bg-gray-700 hover:bg-gray-600 active:bg-gray-500 rounded-xl flex items-center justify-center text-2xl text-white shadow-lg border-2 border-gray-600 active:scale-95 transition-transform"
-          >
-            ◀
-          </button>
-          <button
-            onTouchStart={handleTouchStart("right")}
-            onTouchEnd={handleTouchEnd("right")}
-            onTouchCancel={handleTouchCancel("right")}
-            onMouseDown={handleMouseDown("right")}
-            onMouseUp={handleMouseUp("right")}
-            onMouseLeave={handleMouseUp("right")}
-            className="w-14 h-14 bg-gray-700 hover:bg-gray-600 active:bg-gray-500 rounded-xl flex items-center justify-center text-2xl text-white shadow-lg border-2 border-gray-600 active:scale-95 transition-transform"
-          >
-            ▶
-          </button>
-          <span className="text-gray-400 text-[10px]">MOVE</span>
+          <div className="flex gap-2">
+            <button
+              onTouchStart={handleTouchStart("left")}
+              onTouchEnd={handleTouchEnd("left")}
+              onTouchCancel={handleTouchCancel("left")}
+              onMouseDown={handleMouseDown("left")}
+              onMouseUp={handleMouseUp("left")}
+              onMouseLeave={handleMouseUp("left")}
+              className="w-16 h-16 bg-gray-700/90 hover:bg-gray-600 active:bg-gray-500 rounded-xl flex items-center justify-center text-3xl text-white shadow-lg border-2 border-gray-500 active:scale-95 transition-transform backdrop-blur-sm"
+            >
+              ◀
+            </button>
+            <button
+              onTouchStart={handleTouchStart("right")}
+              onTouchEnd={handleTouchEnd("right")}
+              onTouchCancel={handleTouchCancel("right")}
+              onMouseDown={handleMouseDown("right")}
+              onMouseUp={handleMouseUp("right")}
+              onMouseLeave={handleMouseUp("right")}
+              className="w-16 h-16 bg-gray-700/90 hover:bg-gray-600 active:bg-gray-500 rounded-xl flex items-center justify-center text-3xl text-white shadow-lg border-2 border-gray-500 active:scale-95 transition-transform backdrop-blur-sm"
+            >
+              ▶
+            </button>
+          </div>
+          <span className="text-white/70 text-xs font-medium drop-shadow-md">MOVE</span>
         </div>
-      </div>
+        
+        <div 
+          className="absolute bottom-4 right-4 flex flex-col items-center select-none touch-none z-50"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)' }}
+        >
+          <button
+            onTouchStart={handleTouchStart("jump")}
+            onTouchEnd={handleTouchEnd("jump")}
+            onTouchCancel={handleTouchCancel("jump")}
+            onMouseDown={handleMouseDown("jump")}
+            onMouseUp={handleMouseUp("jump")}
+            onMouseLeave={handleMouseUp("jump")}
+            className="w-20 h-20 bg-green-600/90 hover:bg-green-500 active:bg-green-400 rounded-full flex flex-col items-center justify-center text-white shadow-lg border-4 border-green-400 active:scale-95 transition-transform backdrop-blur-sm"
+          >
+            <span className="text-2xl">⬆</span>
+            <span className="text-xs font-bold">JUMP</span>
+          </button>
+        </div>
+      </>
     );
   }
 
