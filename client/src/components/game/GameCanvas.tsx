@@ -2,10 +2,10 @@ import { useRef, useEffect, useCallback } from "react";
 import { usePlatformer, type Player, type Platform, type Enemy, type Collectible, type Hazard } from "@/lib/stores/usePlatformer";
 import { useAudio } from "@/lib/stores/useAudio";
 
-const GRAVITY = 0.6;
-const JUMP_FORCE = -14;
-const MOVE_SPEED = 5;
-const MAX_FALL_SPEED = 15;
+const GRAVITY = 0.5;
+const JUMP_FORCE = -12;
+const MOVE_SPEED = 3.5;
+const MAX_FALL_SPEED = 12;
 const CANVAS_WIDTH = 800;
 const CANVAS_HEIGHT = 600;
 
