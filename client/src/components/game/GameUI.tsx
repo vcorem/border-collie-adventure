@@ -79,40 +79,39 @@ export function GameUI() {
       )}
 
       {phase === "menu" && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
-          <div className="bg-gradient-to-b from-blue-900/95 to-blue-950/95 rounded-2xl p-8 text-center shadow-2xl border-4 border-yellow-400 max-w-md mx-4">
-            <h1 className="text-4xl font-bold text-white mb-2 drop-shadow-lg">
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-auto overflow-auto p-2">
+          <div className="bg-gradient-to-b from-blue-900/95 to-blue-950/95 rounded-2xl p-4 sm:p-6 text-center shadow-2xl border-4 border-yellow-400 w-full max-w-sm mx-2">
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1 drop-shadow-lg">
               🐕 Border Collie
             </h1>
-            <h2 className="text-2xl font-bold text-yellow-400 mb-6 drop-shadow-lg">
+            <h2 className="text-xl sm:text-2xl font-bold text-yellow-400 mb-3 drop-shadow-lg">
               Adventure
             </h2>
             
-            <div className="mb-4 p-3 bg-black/30 rounded-lg text-center text-white">
-              <p className="text-yellow-300 font-bold">{totalLevels} Levels to Complete!</p>
+            <div className="mb-3 p-2 bg-black/30 rounded-lg text-center text-white">
+              <p className="text-yellow-300 font-bold text-sm sm:text-base">{totalLevels} Levels to Complete!</p>
             </div>
             
-            <div className="mb-6 p-4 bg-black/30 rounded-lg text-left text-white text-sm">
+            <div className="mb-4 p-3 bg-black/30 rounded-lg text-left text-white text-xs sm:text-sm">
               <p className="font-bold mb-2 text-yellow-300">How to Play:</p>
-              <ul className="space-y-1">
-                <li>⬅️ ➡️ or A/D - Move left/right</li>
-                <li>⬆️ or W or SPACE - Jump</li>
-                <li>🦴 Collect bones (+50 pts)</li>
-                <li>⭐ Collect treats (+25 pts)</li>
-                <li>🐾 Jump on bulldogs to defeat them!</li>
+              <ul className="space-y-0.5">
+                <li>⬅️ ➡️ Move left/right</li>
+                <li>⬆️ Jump</li>
+                <li>🦴 Bones +50 | ⭐ Treats +25</li>
+                <li>🐾 Jump on bulldogs!</li>
                 <li>⚠️ Avoid spikes and gaps!</li>
               </ul>
             </div>
             
             <button
               onClick={handleStartGame}
-              className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 text-white font-bold py-4 px-8 rounded-xl text-xl shadow-lg transform hover:scale-105 transition-all duration-200"
+              className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 active:from-green-600 active:to-green-700 text-white font-bold py-5 px-8 rounded-xl text-xl sm:text-2xl shadow-lg transform hover:scale-105 active:scale-95 transition-all duration-200 touch-manipulation"
             >
-              Start Game
+              TAP TO START
             </button>
             
-            <p className="text-white/60 text-xs mt-4">
-              Collect all items and defeat all bulldogs to complete each level!
+            <p className="text-white/60 text-xs mt-3">
+              Collect all items & defeat bulldogs to complete levels!
             </p>
           </div>
         </div>
