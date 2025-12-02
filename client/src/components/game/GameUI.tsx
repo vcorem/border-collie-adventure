@@ -39,21 +39,28 @@ export function GameUI() {
   return (
     <div className="absolute inset-0 pointer-events-none">
       {phase === "playing" && (
-        <div className="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-auto">
-          <div className="bg-black/70 rounded-lg px-4 py-2 text-white">
-            <div className="flex items-center gap-4">
-              <div className="text-sm font-bold text-yellow-300">
+        <div 
+          className="absolute left-2 right-2 flex justify-between items-start pointer-events-auto"
+          style={{ 
+            top: 'calc(env(safe-area-inset-top, 0px) + 8px)',
+            paddingLeft: 'env(safe-area-inset-left, 0px)',
+            paddingRight: 'env(safe-area-inset-right, 0px)'
+          }}
+        >
+          <div className="bg-black/80 rounded-lg px-3 py-1.5 text-white shadow-lg">
+            <div className="flex items-center gap-3">
+              <div className="text-xs font-bold text-yellow-300">
                 Level {currentLevel}/{totalLevels}
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-yellow-400 text-xl">★</span>
-                <span className="text-lg font-bold">{score}</span>
-              </div>
               <div className="flex items-center gap-1">
+                <span className="text-yellow-400 text-lg">★</span>
+                <span className="text-base font-bold">{score}</span>
+              </div>
+              <div className="flex items-center gap-0.5">
                 {Array.from({ length: 3 }).map((_, i) => (
                   <span
                     key={i}
-                    className={`text-xl ${i < lives ? "text-red-500" : "text-gray-600"}`}
+                    className={`text-lg ${i < lives ? "text-red-500" : "text-gray-600"}`}
                   >
                     ♥
                   </span>
@@ -61,16 +68,16 @@ export function GameUI() {
               </div>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-1.5">
             <button
               onClick={handleToggleMute}
-              className="bg-black/70 hover:bg-black/80 rounded-lg px-3 py-2 text-white transition-colors"
+              className="bg-black/80 hover:bg-black/90 rounded-lg px-2.5 py-1.5 text-white transition-colors shadow-lg text-lg"
             >
               {isMuted ? "🔇" : "🔊"}
             </button>
             <button
               onClick={pauseGame}
-              className="bg-black/70 hover:bg-black/80 rounded-lg px-3 py-2 text-white transition-colors"
+              className="bg-black/80 hover:bg-black/90 rounded-lg px-2.5 py-1.5 text-white transition-colors shadow-lg text-lg"
             >
               ⏸️
             </button>
