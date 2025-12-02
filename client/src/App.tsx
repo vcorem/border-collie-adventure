@@ -48,7 +48,7 @@ function App() {
         width: "100vw",
         height: "100dvh",
         display: "flex",
-        flexDirection: isLandscape ? "row" : "column",
+        flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
         backgroundColor: "#1a1a2e",
@@ -63,13 +63,11 @@ function App() {
       <div
         style={{
           position: "relative",
-          width: isLandscape 
-            ? (showTouchControls ? "calc(100vw - 180px)" : "100vw")
-            : "100%",
+          width: "100%",
           height: isLandscape 
             ? "100%" 
             : (showTouchControls ? "calc(100dvh - 140px)" : "100%"),
-          maxWidth: isLandscape ? "none" : "800px",
+          maxWidth: isLandscape ? "100%" : "800px",
           maxHeight: isLandscape ? "100%" : (showTouchControls ? "none" : "600px"),
           borderRadius: isMobile ? "8px" : "12px",
           overflow: "hidden",
@@ -82,18 +80,21 @@ function App() {
       >
         <GameCanvas touchControls={touchControls} />
         <GameUI />
+        
+        {showTouchControls && isLandscape && (
+          <TouchControls onControlChange={handleControlChange} isLandscape={true} />
+        )}
       </div>
       
-      {showTouchControls && (
+      {showTouchControls && !isLandscape && (
         <div style={{ 
-          width: isLandscape ? "170px" : "100%",
-          height: isLandscape ? "100%" : "130px",
-          maxWidth: isLandscape ? "170px" : "800px",
+          width: "100%",
+          height: "130px",
+          maxWidth: "800px",
           flexShrink: 0,
-          marginLeft: isLandscape ? "8px" : "0",
-          marginTop: isLandscape ? "0" : "4px",
+          marginTop: "4px",
         }}>
-          <TouchControls onControlChange={handleControlChange} isLandscape={isLandscape} />
+          <TouchControls onControlChange={handleControlChange} isLandscape={false} />
         </div>
       )}
       
