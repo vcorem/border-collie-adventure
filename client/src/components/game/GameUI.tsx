@@ -105,9 +105,16 @@ export function GameUI() {
             
             <button
               onClick={handleStartGame}
-              className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 active:from-green-600 active:to-green-700 text-white font-bold py-5 px-8 rounded-xl text-xl sm:text-2xl shadow-lg transform hover:scale-105 active:scale-95 transition-all duration-200 touch-manipulation"
+              className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 active:from-green-600 active:to-green-700 text-white font-bold py-5 px-8 rounded-xl text-xl sm:text-2xl shadow-lg transform hover:scale-105 active:scale-95 transition-all duration-200 touch-manipulation mb-3"
             >
               TAP TO START
+            </button>
+            
+            <button
+              onClick={handleToggleMute}
+              className="w-full bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600 active:from-gray-700 active:to-gray-800 text-white font-bold py-3 px-6 rounded-xl text-base shadow-lg transform hover:scale-105 active:scale-95 transition-all duration-200 touch-manipulation"
+            >
+              {isMuted ? "🔇 Sound OFF" : "🔊 Sound ON"}
             </button>
             
             <p className="text-white/60 text-xs mt-3">
