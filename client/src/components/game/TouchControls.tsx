@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { usePlatformer } from "@/lib/stores/usePlatformer";
 
 interface TouchControlsProps {
@@ -9,28 +9,86 @@ interface TouchControlsProps {
 export function TouchControls({ onControlChange, isLandscape = false }: TouchControlsProps) {
   const { phase } = usePlatformer();
   const controlsRef = useRef({ left: false, right: false, jump: false });
+  const activePointersRef = useRef<Map<number, "left" | "right" | "jump">>(new Map());
 
-  const updateControls = (key: "left" | "right" | "jump", value: boolean) => {
+  const updateControls = useCallback((key: "left" | "right" | "jump", value: boolean) => {
     controlsRef.current[key] = value;
     onControlChange({ ...controlsRef.current });
+  }, [onControlChange]);
+
+  const resetAllControls = useCallback(() => {
+    controlsRef.current = { left: false, right: false, jump: false };
+    activePointersRef.current.clear();
+    onControlChange({ left: false, right: false, jump: false });
+  }, [onControlChange]);
+
+  const handleTouchStart = (key: "left" | "right" | "jump") => (e: React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const touch = e.changedTouches[0];
+    if (touch) {
+      activePointersRef.current.set(touch.identifier, key);
+    }
+    updateControls(key, true);
   };
 
-  const handleTouchStart = (key: "left" | "right" | "jump") => (e: React.TouchEvent | React.MouseEvent) => {
+  const handleTouchEnd = (key: "left" | "right" | "jump") => (e: React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const touch = e.changedTouches[0];
+    if (touch) {
+      activePointersRef.current.delete(touch.identifier);
+    }
+    updateControls(key, false);
+  };
+
+  const handleTouchCancel = (key: "left" | "right" | "jump") => (e: React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const touch = e.changedTouches[0];
+    if (touch) {
+      activePointersRef.current.delete(touch.identifier);
+    }
+    updateControls(key, false);
+  };
+
+  const handleMouseDown = (key: "left" | "right" | "jump") => (e: React.MouseEvent) => {
     e.preventDefault();
     updateControls(key, true);
   };
 
-  const handleTouchEnd = (key: "left" | "right" | "jump") => (e: React.TouchEvent | React.MouseEvent) => {
+  const handleMouseUp = (key: "left" | "right" | "jump") => (e: React.MouseEvent) => {
     e.preventDefault();
     updateControls(key, false);
   };
 
   useEffect(() => {
     if (phase !== "playing") {
-      controlsRef.current = { left: false, right: false, jump: false };
-      onControlChange({ left: false, right: false, jump: false });
+      resetAllControls();
     }
-  }, [phase, onControlChange]);
+  }, [phase, resetAllControls]);
+
+  useEffect(() => {
+    const handleGlobalTouchEnd = () => {
+      if (activePointersRef.current.size === 0) {
+        resetAllControls();
+      }
+    };
+    
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        resetAllControls();
+      }
+    };
+
+    window.addEventListener('touchend', handleGlobalTouchEnd);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      window.removeEventListener('touchend', handleGlobalTouchEnd);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [resetAllControls]);
 
   if (phase !== "playing") return null;
 
@@ -40,9 +98,10 @@ export function TouchControls({ onControlChange, isLandscape = false }: TouchCon
         <button
           onTouchStart={handleTouchStart("jump")}
           onTouchEnd={handleTouchEnd("jump")}
-          onMouseDown={handleTouchStart("jump")}
-          onMouseUp={handleTouchEnd("jump")}
-          onMouseLeave={handleTouchEnd("jump")}
+          onTouchCancel={handleTouchCancel("jump")}
+          onMouseDown={handleMouseDown("jump")}
+          onMouseUp={handleMouseUp("jump")}
+          onMouseLeave={handleMouseUp("jump")}
           className="w-16 h-16 bg-green-600 hover:bg-green-500 active:bg-green-400 rounded-full flex flex-col items-center justify-center text-white shadow-lg border-4 border-green-400 active:scale-95 transition-transform"
         >
           <span className="text-xl">⬆</span>
@@ -53,9 +112,10 @@ export function TouchControls({ onControlChange, isLandscape = false }: TouchCon
           <button
             onTouchStart={handleTouchStart("left")}
             onTouchEnd={handleTouchEnd("left")}
-            onMouseDown={handleTouchStart("left")}
-            onMouseUp={handleTouchEnd("left")}
-            onMouseLeave={handleTouchEnd("left")}
+            onTouchCancel={handleTouchCancel("left")}
+            onMouseDown={handleMouseDown("left")}
+            onMouseUp={handleMouseUp("left")}
+            onMouseLeave={handleMouseUp("left")}
             className="w-14 h-14 bg-gray-700 hover:bg-gray-600 active:bg-gray-500 rounded-xl flex items-center justify-center text-2xl text-white shadow-lg border-2 border-gray-600 active:scale-95 transition-transform"
           >
             ◀
@@ -63,9 +123,10 @@ export function TouchControls({ onControlChange, isLandscape = false }: TouchCon
           <button
             onTouchStart={handleTouchStart("right")}
             onTouchEnd={handleTouchEnd("right")}
-            onMouseDown={handleTouchStart("right")}
-            onMouseUp={handleTouchEnd("right")}
-            onMouseLeave={handleTouchEnd("right")}
+            onTouchCancel={handleTouchCancel("right")}
+            onMouseDown={handleMouseDown("right")}
+            onMouseUp={handleMouseUp("right")}
+            onMouseLeave={handleMouseUp("right")}
             className="w-14 h-14 bg-gray-700 hover:bg-gray-600 active:bg-gray-500 rounded-xl flex items-center justify-center text-2xl text-white shadow-lg border-2 border-gray-600 active:scale-95 transition-transform"
           >
             ▶
@@ -83,9 +144,10 @@ export function TouchControls({ onControlChange, isLandscape = false }: TouchCon
           <button
             onTouchStart={handleTouchStart("left")}
             onTouchEnd={handleTouchEnd("left")}
-            onMouseDown={handleTouchStart("left")}
-            onMouseUp={handleTouchEnd("left")}
-            onMouseLeave={handleTouchEnd("left")}
+            onTouchCancel={handleTouchCancel("left")}
+            onMouseDown={handleMouseDown("left")}
+            onMouseUp={handleMouseUp("left")}
+            onMouseLeave={handleMouseUp("left")}
             className="w-14 h-14 bg-gray-700 hover:bg-gray-600 active:bg-gray-500 rounded-xl flex items-center justify-center text-2xl text-white shadow-lg border-2 border-gray-600 active:scale-95 transition-transform"
           >
             ◀
@@ -93,9 +155,10 @@ export function TouchControls({ onControlChange, isLandscape = false }: TouchCon
           <button
             onTouchStart={handleTouchStart("right")}
             onTouchEnd={handleTouchEnd("right")}
-            onMouseDown={handleTouchStart("right")}
-            onMouseUp={handleTouchEnd("right")}
-            onMouseLeave={handleTouchEnd("right")}
+            onTouchCancel={handleTouchCancel("right")}
+            onMouseDown={handleMouseDown("right")}
+            onMouseUp={handleMouseUp("right")}
+            onMouseLeave={handleMouseUp("right")}
             className="w-14 h-14 bg-gray-700 hover:bg-gray-600 active:bg-gray-500 rounded-xl flex items-center justify-center text-2xl text-white shadow-lg border-2 border-gray-600 active:scale-95 transition-transform"
           >
             ▶
@@ -107,9 +170,10 @@ export function TouchControls({ onControlChange, isLandscape = false }: TouchCon
       <button
         onTouchStart={handleTouchStart("jump")}
         onTouchEnd={handleTouchEnd("jump")}
-        onMouseDown={handleTouchStart("jump")}
-        onMouseUp={handleTouchEnd("jump")}
-        onMouseLeave={handleTouchEnd("jump")}
+        onTouchCancel={handleTouchCancel("jump")}
+        onMouseDown={handleMouseDown("jump")}
+        onMouseUp={handleMouseUp("jump")}
+        onMouseLeave={handleMouseUp("jump")}
         className="w-16 h-16 bg-green-600 hover:bg-green-500 active:bg-green-400 rounded-full flex flex-col items-center justify-center text-white shadow-lg border-4 border-green-400 active:scale-95 transition-transform"
       >
         <span className="text-xl">⬆</span>
