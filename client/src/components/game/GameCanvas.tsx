@@ -382,8 +382,13 @@ export function GameCanvas({ touchControls }: GameCanvasProps) {
   useEffect(() => {
     const unsubscribe = usePlatformer.subscribe(
       (state) => state.phase,
-      (phase) => {
+      (phase, prevPhase) => {
         if (phase === "menu" || phase === "gameOver") {
+          momentumRef.current = 0;
+        }
+        if (prevPhase !== "playing" && phase === "playing") {
+          keysRef.current = { left: false, right: false, jump: false };
+          touchRef.current = { left: false, right: false, jump: false };
           momentumRef.current = 0;
         }
       }
