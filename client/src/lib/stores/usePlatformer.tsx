@@ -82,6 +82,8 @@ interface PlatformerState {
   levelWidth: number;
   levelHeight: number;
   cameraX: number;
+  continueFromLastLevel: boolean;
+  lastReachedLevel: number;
 
   setPhase: (phase: GamePhase) => void;
   startGame: () => void;
@@ -103,6 +105,7 @@ interface PlatformerState {
   updatePlatforms: (platforms: Platform[]) => void;
   
   initLevel: () => void;
+  toggleContinueFromLastLevel: () => void;
 }
 
 const INITIAL_PLAYER: Player = {
@@ -169,7 +172,7 @@ const generateLevel = (level: number): LevelData => {
   const groundY = 550;
   const minSegmentWidth = 150;
   const maxSegmentWidth = 400;
-  const gapWidth = 100;
+  const gapWidth = 80;
   
   platforms.push({ x: 0, y: groundY, width: 300, height: 50 });
   groundX = 300;
@@ -187,30 +190,50 @@ const generateLevel = (level: number): LevelData => {
   platforms.push({ x: groundX, y: groundY, width: 400, height: 50 });
   const actualLevelWidth = groundX + 400;
   
-  const floatingYLevels = [320, 380, 420, 280, 350];
+  const MAX_JUMP_HEIGHT = 100;
+  const BASE_Y = groundY - 50;
+  
+  const floatingYLevels = [
+    BASE_Y - 80,
+    BASE_Y - 60,
+    BASE_Y - 100,
+    BASE_Y - 70,
+    BASE_Y - 90,
+  ];
+  
+  const platformZones: { x: number; y: number; width: number }[] = [];
+  
   for (let i = 0; i < config.floatingPlatforms; i++) {
     const x = 150 + (i * (actualLevelWidth - 300) / config.floatingPlatforms) + random() * 50;
-    const y = floatingYLevels[i % floatingYLevels.length] + (random() - 0.5) * 40;
-    const width = 80 + Math.floor(random() * 60);
+    const baseY = floatingYLevels[i % floatingYLevels.length];
+    const y = baseY + (random() - 0.5) * 20;
+    const width = 100 + Math.floor(random() * 60);
     
     const isMoving = random() < config.movingPlatformChance;
     
     if (isMoving) {
-      const moveVertical = random() > 0.5;
       platforms.push({
         x,
         y,
         width,
         height: 20,
         isMoving: true,
-        moveSpeed: 1 + random() * 1.5,
-        moveRangeX: moveVertical ? 0 : 60 + random() * 60,
-        moveRangeY: moveVertical ? 50 + random() * 50 : 0,
+        moveSpeed: 0.8 + random() * 1,
+        moveRangeX: 40 + random() * 40,
+        moveRangeY: 0,
         startX: x,
         startY: y,
       });
     } else {
       platforms.push({ x, y, width, height: 20 });
+    }
+    
+    platformZones.push({ x, y, width });
+    
+    if (i > 0 && i % 3 === 0 && level > 5) {
+      const stepX = x - 80 - random() * 40;
+      const stepY = y + 50 + random() * 30;
+      platforms.push({ x: stepX, y: stepY, width: 80, height: 20 });
     }
   }
   
@@ -301,8 +324,14 @@ export const usePlatformer = create<PlatformerState>()(
     levelWidth: 2200,
     levelHeight: 600,
     cameraX: 0,
+    continueFromLastLevel: false,
+    lastReachedLevel: 1,
 
     setPhase: (phase) => set({ phase }),
+    
+    toggleContinueFromLastLevel: () => {
+      set((state) => ({ continueFromLastLevel: !state.continueFromLastLevel }));
+    },
     
     startGame: () => {
       const level = getLevelData(1);
@@ -311,6 +340,7 @@ export const usePlatformer = create<PlatformerState>()(
         score: 0,
         lives: 3,
         currentLevel: 1,
+        lastReachedLevel: 1,
         player: { ...INITIAL_PLAYER },
         platforms: level.platforms,
         enemies: level.enemies,
@@ -353,6 +383,7 @@ export const usePlatformer = create<PlatformerState>()(
       set({
         phase: "playing",
         currentLevel: nextLevelNum,
+        lastReachedLevel: nextLevelNum,
         player: { ...INITIAL_PLAYER },
         platforms: level.platforms,
         enemies: level.enemies,
@@ -366,12 +397,14 @@ export const usePlatformer = create<PlatformerState>()(
     },
     
     restartGame: () => {
-      const level = getLevelData(1);
+      const { continueFromLastLevel, lastReachedLevel } = get();
+      const startLevel = continueFromLastLevel ? lastReachedLevel : 1;
+      const level = getLevelData(startLevel);
       set({
         phase: "playing",
         score: 0,
         lives: 3,
-        currentLevel: 1,
+        currentLevel: startLevel,
         player: { ...INITIAL_PLAYER },
         platforms: level.platforms,
         enemies: level.enemies,
