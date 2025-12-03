@@ -3,32 +3,28 @@ import { useAudio } from "@/lib/stores/useAudio";
 
 export function GameUI() {
   const { phase, score, lives, currentLevel, totalLevels, startGame, restartGame, resumeGame, pauseGame, nextLevel, continueFromLastLevel, lastReachedLevel, toggleContinueFromLastLevel } = usePlatformer();
-  const { isMuted, toggleMute, backgroundMusic } = useAudio();
+  const { isMuted, toggleMute, playBackgroundMusic, stopBackgroundMusic } = useAudio();
 
   const handleToggleMute = () => {
-    toggleMute();
-    if (backgroundMusic) {
-      if (!isMuted) {
-        backgroundMusic.pause();
-      } else {
-        backgroundMusic.play().catch(() => {});
-      }
+    if (!isMuted) {
+      stopBackgroundMusic();
+    } else {
+      playBackgroundMusic();
     }
+    toggleMute();
   };
 
   const handleStartGame = () => {
     startGame();
-    if (backgroundMusic && !isMuted) {
-      backgroundMusic.currentTime = 0;
-      backgroundMusic.play().catch(() => {});
+    if (!isMuted) {
+      playBackgroundMusic();
     }
   };
 
   const handleRestartGame = () => {
     restartGame();
-    if (backgroundMusic && !isMuted) {
-      backgroundMusic.currentTime = 0;
-      backgroundMusic.play().catch(() => {});
+    if (!isMuted) {
+      playBackgroundMusic();
     }
   };
 
