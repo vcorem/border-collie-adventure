@@ -1,107 +1,89 @@
 import { useEffect, useRef } from "react";
 import { useAudio } from "@/lib/stores/useAudio";
+import { Capacitor } from "@capacitor/core";
+import { NativeAudio } from "@capacitor-community/native-audio";
 
 export function SoundManager() {
-  const { setBackgroundMusic, setHitSound, setSuccessSound } = useAudio();
+  const { setBackgroundMusic, setHitSound, setSuccessSound, setIsNative } = useAudio();
   const audioInitialized = useRef(false);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const audioUnlocked = useRef(false);
 
   useEffect(() => {
     if (audioInitialized.current) return;
     audioInitialized.current = true;
 
-    const bgMusic = new Audio();
-    bgMusic.src = "/sounds/background.mp3";
-    bgMusic.loop = true;
-    bgMusic.volume = 0.3;
-    bgMusic.preload = "auto";
-    setBackgroundMusic(bgMusic);
+    const isNative = Capacitor.isNativePlatform();
+    setIsNative(isNative);
 
-    const hit = new Audio();
-    hit.src = "/sounds/hit.mp3";
-    hit.volume = 0.5;
-    hit.preload = "auto";
-    setHitSound(hit);
-
-    const success = new Audio();
-    success.src = "/sounds/success.mp3";
-    success.volume = 0.5;
-    success.preload = "auto";
-    setSuccessSound(success);
-
-    const getAudioContext = () => {
-      if (!audioContextRef.current) {
-        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-        if (AudioContextClass) {
-          audioContextRef.current = new AudioContextClass();
+    if (isNative) {
+      const preloadNativeAudio = async () => {
+        try {
+          await NativeAudio.preload({
+            assetId: 'background',
+            assetPath: 'public/sounds/background.mp3',
+            audioChannelNum: 1,
+            isUrl: false,
+          });
+          
+          await NativeAudio.preload({
+            assetId: 'hit',
+            assetPath: 'public/sounds/hit.mp3',
+            audioChannelNum: 2,
+            isUrl: false,
+          });
+          
+          await NativeAudio.preload({
+            assetId: 'success',
+            assetPath: 'public/sounds/success.mp3',
+            audioChannelNum: 3,
+            isUrl: false,
+          });
+          
+          await NativeAudio.setVolume({ assetId: 'background', volume: 0.3 });
+          await NativeAudio.setVolume({ assetId: 'hit', volume: 0.5 });
+          await NativeAudio.setVolume({ assetId: 'success', volume: 0.5 });
+          
+          console.log('Native audio preloaded successfully');
+        } catch (e) {
+          console.log('Native audio preload error:', e);
         }
-      }
-      return audioContextRef.current;
-    };
-
-    const unlockAudio = async () => {
-      if (audioUnlocked.current) return;
+      };
       
-      try {
-        const audioContext = getAudioContext();
-        if (!audioContext) return;
-        
-        if (audioContext.state === 'suspended') {
-          await audioContext.resume();
-        }
-        
-        const buffer = audioContext.createBuffer(1, 1, 22050);
-        const source = audioContext.createBufferSource();
-        source.buffer = buffer;
-        source.connect(audioContext.destination);
-        source.start(0);
-        
+      preloadNativeAudio();
+    } else {
+      const bgMusic = new Audio("/sounds/background.mp3");
+      bgMusic.loop = true;
+      bgMusic.volume = 0.3;
+      bgMusic.preload = "auto";
+      setBackgroundMusic(bgMusic);
+
+      const hit = new Audio("/sounds/hit.mp3");
+      hit.volume = 0.5;
+      hit.preload = "auto";
+      setHitSound(hit);
+
+      const success = new Audio("/sounds/success.mp3");
+      success.volume = 0.5;
+      success.preload = "auto";
+      setSuccessSound(success);
+
+      const unlockAudio = () => {
         bgMusic.load();
         hit.load();
         success.load();
         
-        await new Promise(resolve => setTimeout(resolve, 50));
-        
-        const playPromise = bgMusic.play();
-        if (playPromise) {
-          await playPromise;
+        bgMusic.play().then(() => {
           bgMusic.pause();
           bgMusic.currentTime = 0;
-          audioUnlocked.current = true;
-          
-          document.removeEventListener('touchstart', gestureHandler);
-          document.removeEventListener('touchend', gestureHandler);
-          document.removeEventListener('click', gestureHandler);
-          document.removeEventListener('pointerdown', gestureHandler);
-          console.log("Audio unlocked");
-        }
-      } catch (e) {
-        console.log("Audio unlock attempt, will retry");
-      }
-    };
+        }).catch(() => {});
+        
+        document.removeEventListener('touchstart', unlockAudio);
+        document.removeEventListener('click', unlockAudio);
+      };
 
-    const gestureHandler = () => {
-      unlockAudio();
-    };
-
-    document.addEventListener('touchstart', gestureHandler, { passive: true });
-    document.addEventListener('touchend', gestureHandler, { passive: true });
-    document.addEventListener('click', gestureHandler);
-    document.addEventListener('pointerdown', gestureHandler);
-
-    return () => {
-      bgMusic.pause();
-      bgMusic.src = "";
-      document.removeEventListener('touchstart', gestureHandler);
-      document.removeEventListener('touchend', gestureHandler);
-      document.removeEventListener('click', gestureHandler);
-      document.removeEventListener('pointerdown', gestureHandler);
-      if (audioContextRef.current) {
-        audioContextRef.current.close().catch(() => {});
-      }
-    };
-  }, [setBackgroundMusic, setHitSound, setSuccessSound]);
+      document.addEventListener('touchstart', unlockAudio, { passive: true });
+      document.addEventListener('click', unlockAudio);
+    }
+  }, [setBackgroundMusic, setHitSound, setSuccessSound, setIsNative]);
 
   return null;
 }
