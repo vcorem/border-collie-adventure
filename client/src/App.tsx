@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import "@fontsource/inter";
 import { GameCanvas } from "./components/game/GameCanvas";
 import { GameUI } from "./components/game/GameUI";
@@ -11,6 +11,14 @@ function App() {
   const [isMobile, setIsMobile] = useState(false);
   const [isLandscape, setIsLandscape] = useState(false);
   const phase = usePlatformer((state) => state.phase);
+  const prevPhaseRef = useRef(phase);
+
+  useEffect(() => {
+    if (prevPhaseRef.current !== "playing" && phase === "playing") {
+      setTouchControls({ left: false, right: false, jump: false });
+    }
+    prevPhaseRef.current = phase;
+  }, [phase]);
 
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => {
