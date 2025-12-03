@@ -3,11 +3,14 @@ import { usePlatformer, type Player, type Platform, type Enemy, type Collectible
 import { useAudio } from "@/lib/stores/useAudio";
 
 const GRAVITY = 0.5;
-const JUMP_FORCE = -12;
+const BASE_JUMP_FORCE = -11;
+const MAX_JUMP_FORCE = -15;
 const MOVE_SPEED = 3.5;
 const MAX_FALL_SPEED = 12;
 const CANVAS_WIDTH = 800;
 const CANVAS_HEIGHT = 600;
+const MOMENTUM_BUILD_RATE = 0.015;
+const MAX_MOMENTUM = 1.0;
 
 interface Keys {
   left: boolean;
@@ -29,6 +32,7 @@ export function GameCanvas({ touchControls }: GameCanvasProps) {
   const renderRef = useRef<() => void>(() => {});
   const platformTimeRef = useRef<number>(0);
   const borderCollieImageRef = useRef<HTMLImageElement | null>(null);
+  const momentumRef = useRef<number>(0);
   
   const { playHit, playSuccess } = useAudio();
 
@@ -412,6 +416,8 @@ export function GameCanvas({ touchControls }: GameCanvasProps) {
       const prevPlayerY = currentPlayer.y;
       
       newPlayer.velocityX = 0;
+      const isMoving = keys.left || keys.right;
+      
       if (keys.left) {
         newPlayer.velocityX = -MOVE_SPEED;
         newPlayer.facingRight = false;
@@ -425,10 +431,17 @@ export function GameCanvas({ touchControls }: GameCanvasProps) {
       
       if (!keys.left && !keys.right) {
         newPlayer.walkFrame = 0;
+        momentumRef.current = Math.max(0, momentumRef.current - 0.03);
+      }
+      
+      if (isMoving && newPlayer.isOnGround) {
+        momentumRef.current = Math.min(MAX_MOMENTUM, momentumRef.current + MOMENTUM_BUILD_RATE);
       }
       
       if (keys.jump && newPlayer.isOnGround && !newPlayer.isJumping) {
-        newPlayer.velocityY = JUMP_FORCE;
+        const momentum = momentumRef.current;
+        const jumpForce = BASE_JUMP_FORCE + (MAX_JUMP_FORCE - BASE_JUMP_FORCE) * momentum;
+        newPlayer.velocityY = jumpForce;
         newPlayer.isOnGround = false;
         newPlayer.isJumping = true;
       }
@@ -480,7 +493,7 @@ export function GameCanvas({ touchControls }: GameCanvasProps) {
           
           if (currentPlayer.velocityY > 0 && playerBottom - enemyTop < 20) {
             defeatEnemy(enemy.id);
-            newPlayer.velocityY = JUMP_FORCE * 0.6;
+            newPlayer.velocityY = BASE_JUMP_FORCE * 0.6;
             playSuccess();
           } else {
             hitEnemy = true;
