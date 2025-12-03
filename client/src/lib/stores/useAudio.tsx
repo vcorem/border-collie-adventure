@@ -1,67 +1,114 @@
 import { create } from "zustand";
+import { NativeAudio } from "@capacitor-community/native-audio";
 
 interface AudioState {
   backgroundMusic: HTMLAudioElement | null;
   hitSound: HTMLAudioElement | null;
   successSound: HTMLAudioElement | null;
   isMuted: boolean;
+  isNative: boolean;
   
-  // Setter functions
   setBackgroundMusic: (music: HTMLAudioElement) => void;
   setHitSound: (sound: HTMLAudioElement) => void;
   setSuccessSound: (sound: HTMLAudioElement) => void;
+  setIsNative: (isNative: boolean) => void;
   
-  // Control functions
   toggleMute: () => void;
   playHit: () => void;
   playSuccess: () => void;
+  playBackgroundMusic: () => void;
+  stopBackgroundMusic: () => void;
 }
 
 export const useAudio = create<AudioState>((set, get) => ({
   backgroundMusic: null,
   hitSound: null,
   successSound: null,
-  isMuted: false, // Start unmuted by default - music plays when game starts
+  isMuted: false,
+  isNative: false,
   
   setBackgroundMusic: (music) => set({ backgroundMusic: music }),
   setHitSound: (sound) => set({ hitSound: sound }),
   setSuccessSound: (sound) => set({ successSound: sound }),
+  setIsNative: (isNative) => set({ isNative }),
   
-  toggleMute: () => {
-    const { isMuted } = get();
+  toggleMute: async () => {
+    const { isMuted, isNative, backgroundMusic } = get();
     const newMutedState = !isMuted;
-    
-    // Just update the muted state
     set({ isMuted: newMutedState });
     
-    // Log the change
-    console.log(`Sound ${newMutedState ? 'muted' : 'unmuted'}`);
+    if (isNative) {
+      try {
+        if (newMutedState) {
+          await NativeAudio.stop({ assetId: 'background' });
+        }
+      } catch (e) {}
+    } else if (backgroundMusic) {
+      if (newMutedState) {
+        backgroundMusic.pause();
+      }
+    }
   },
   
-  playHit: () => {
-    const { hitSound, isMuted } = get();
-    if (hitSound && !isMuted) {
+  playHit: async () => {
+    const { hitSound, isMuted, isNative } = get();
+    if (isMuted) return;
+    
+    if (isNative) {
+      try {
+        await NativeAudio.play({ assetId: 'hit' });
+      } catch (e) {}
+    } else if (hitSound) {
       try {
         const soundClone = hitSound.cloneNode() as HTMLAudioElement;
         soundClone.volume = 0.3;
-        const playPromise = soundClone.play();
-        if (playPromise) {
-          playPromise.catch(() => {});
-        }
+        soundClone.play().catch(() => {});
       } catch (e) {}
     }
   },
   
-  playSuccess: () => {
-    const { successSound, isMuted } = get();
-    if (successSound && !isMuted) {
+  playSuccess: async () => {
+    const { successSound, isMuted, isNative } = get();
+    if (isMuted) return;
+    
+    if (isNative) {
+      try {
+        await NativeAudio.play({ assetId: 'success' });
+      } catch (e) {}
+    } else if (successSound) {
       try {
         successSound.currentTime = 0;
-        const playPromise = successSound.play();
-        if (playPromise) {
-          playPromise.catch(() => {});
-        }
+        successSound.play().catch(() => {});
       } catch (e) {}
+    }
+  },
+  
+  playBackgroundMusic: async () => {
+    const { backgroundMusic, isMuted, isNative } = get();
+    if (isMuted) return;
+    
+    if (isNative) {
+      try {
+        await NativeAudio.loop({ assetId: 'background' });
+      } catch (e) {}
+    } else if (backgroundMusic) {
+      try {
+        backgroundMusic.currentTime = 0;
+        backgroundMusic.play().catch(() => {});
+      } catch (e) {}
+    }
+  },
+  
+  stopBackgroundMusic: async () => {
+    const { backgroundMusic, isNative } = get();
+    
+    if (isNative) {
+      try {
+        await NativeAudio.stop({ assetId: 'background' });
+      } catch (e) {}
+    } else if (backgroundMusic) {
+      backgroundMusic.pause();
+      backgroundMusic.currentTime = 0;
     }
   }
 }));
