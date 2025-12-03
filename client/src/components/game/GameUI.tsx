@@ -2,7 +2,7 @@ import { usePlatformer } from "@/lib/stores/usePlatformer";
 import { useAudio } from "@/lib/stores/useAudio";
 
 export function GameUI() {
-  const { phase, score, lives, currentLevel, totalLevels, startGame, restartGame, resumeGame, pauseGame, nextLevel } = usePlatformer();
+  const { phase, score, lives, currentLevel, totalLevels, startGame, restartGame, resumeGame, pauseGame, nextLevel, continueFromLastLevel, lastReachedLevel, toggleContinueFromLastLevel } = usePlatformer();
   const { isMuted, toggleMute, backgroundMusic } = useAudio();
 
   const handleToggleMute = () => {
@@ -103,7 +103,7 @@ export function GameUI() {
               <p className="font-bold mb-2 text-yellow-300">How to Play:</p>
               <ul className="space-y-0.5">
                 <li>⬅️ ➡️ Move left/right</li>
-                <li>⬆️ Jump</li>
+                <li>⬆️ Jump (run first = higher jump!)</li>
                 <li>🦴 Bones +50 | ⭐ Treats +25</li>
                 <li>🐾 Jump on bulldogs!</li>
                 <li>⚠️ Avoid spikes and gaps!</li>
@@ -117,14 +117,33 @@ export function GameUI() {
               TAP TO START
             </button>
             
-            <button
-              onClick={handleToggleMute}
-              className="w-full bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600 active:from-gray-700 active:to-gray-800 text-white font-bold py-3 px-6 rounded-xl text-base shadow-lg transform hover:scale-105 active:scale-95 transition-all duration-200 touch-manipulation"
-            >
-              {isMuted ? "🔇 Sound OFF" : "🔊 Sound ON"}
-            </button>
+            <div className="flex gap-2 mb-3">
+              <button
+                onClick={handleToggleMute}
+                className="flex-1 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600 active:from-gray-700 active:to-gray-800 text-white font-bold py-3 px-4 rounded-xl text-sm shadow-lg transform hover:scale-105 active:scale-95 transition-all duration-200 touch-manipulation"
+              >
+                {isMuted ? "🔇 Sound OFF" : "🔊 Sound ON"}
+              </button>
+              
+              <button
+                onClick={toggleContinueFromLastLevel}
+                className={`flex-1 font-bold py-3 px-4 rounded-xl text-sm shadow-lg transform hover:scale-105 active:scale-95 transition-all duration-200 touch-manipulation ${
+                  continueFromLastLevel 
+                    ? "bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white" 
+                    : "bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600 text-white"
+                }`}
+              >
+                {continueFromLastLevel ? "🔄 Continue ON" : "🔄 Continue OFF"}
+              </button>
+            </div>
             
-            <p className="text-white/60 text-xs mt-3">
+            {continueFromLastLevel && lastReachedLevel > 1 && (
+              <p className="text-green-300 text-xs mb-2">
+                Will restart from Level {lastReachedLevel}
+              </p>
+            )}
+            
+            <p className="text-white/60 text-xs">
               Collect all items & defeat bulldogs to complete levels!
             </p>
           </div>
