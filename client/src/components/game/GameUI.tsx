@@ -253,7 +253,7 @@ export function GameUI() {
       )}
 
       {phase === "playing" && (
-        <div className="absolute bottom-4 left-4 bg-black/50 rounded-lg px-3 py-1 text-white/70 text-xs">
+        <div className="absolute bottom-4 left-4 bg-black/50 rounded-lg px-3 py-1 text-white/70 text-xs hidden md:block">
           Arrow Keys / WASD to move • Space to jump • Collect all items & defeat bulldogs!
         </div>
       )}
