@@ -144,7 +144,7 @@ const getLevelConfig = (level: number): LevelConfig => {
     floatingPlatforms: 6 + Math.floor(level / 2),
     movingPlatformChance: Math.min(0.1 + level * 0.03, 0.5),
     enemyCount: 3 + Math.floor(level / 2),
-    enemySpeed: 1.5 + difficulty * 2.5,
+    enemySpeed: 1.0 + difficulty * 1.5,
     collectibleCount: 5 + Math.floor(level / 3),
     hazardCount: Math.floor(level / 2),
   };
@@ -218,7 +218,7 @@ const generateLevel = (level: number): LevelData => {
         width,
         height: 20,
         isMoving: true,
-        moveSpeed: 0.8 + random() * 1,
+        moveSpeed: 0.5 + random() * 0.5,
         moveRangeX: 40 + random() * 40,
         moveRangeY: 0,
         startX: x,
