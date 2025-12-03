@@ -4,7 +4,10 @@ import { Capacitor } from "@capacitor/core";
 import { NativeAudio } from "@capacitor-community/native-audio";
 
 export function SoundManager() {
-  const { setBackgroundMusic, setHitSound, setSuccessSound, setIsNative } = useAudio();
+  const setBackgroundMusic = useAudio((state) => state.setBackgroundMusic);
+  const setHitSound = useAudio((state) => state.setHitSound);
+  const setSuccessSound = useAudio((state) => state.setSuccessSound);
+  const setIsNative = useAudio((state) => state.setIsNative);
   const audioInitialized = useRef(false);
 
   useEffect(() => {
@@ -12,7 +15,9 @@ export function SoundManager() {
     audioInitialized.current = true;
 
     const isNative = Capacitor.isNativePlatform();
-    setIsNative(isNative);
+    if (setIsNative) {
+      setIsNative(isNative);
+    }
 
     if (isNative) {
       const preloadNativeAudio = async () => {
@@ -74,6 +79,7 @@ export function SoundManager() {
         bgMusic.play().then(() => {
           bgMusic.pause();
           bgMusic.currentTime = 0;
+          console.log("Audio unlocked");
         }).catch(() => {});
         
         document.removeEventListener('touchstart', unlockAudio);
