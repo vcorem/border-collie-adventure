@@ -380,11 +380,24 @@ export function GameCanvas({ touchControls }: GameCanvasProps) {
   }, []);
 
   useEffect(() => {
+    const unsubscribe = usePlatformer.subscribe(
+      (state) => state.phase,
+      (phase) => {
+        if (phase === "menu" || phase === "gameOver") {
+          momentumRef.current = 0;
+        }
+      }
+    );
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
     const gameLoop = (timestamp: number) => {
       const state = usePlatformer.getState();
       const { phase, levelWidth, setPlayer, setCameraX, defeatEnemy, collectItem, loseLife, levelComplete, updatePlatforms } = state;
       
       if (phase !== "playing") {
+        momentumRef.current = 0;
         return;
       }
 
