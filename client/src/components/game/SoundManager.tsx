@@ -4,84 +4,86 @@ import { useAudio } from "@/lib/stores/useAudio";
 export function SoundManager() {
   const { setBackgroundMusic, setHitSound, setSuccessSound } = useAudio();
   const audioInitialized = useRef(false);
-  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioUnlocked = useRef(false);
 
   useEffect(() => {
     if (audioInitialized.current) return;
     audioInitialized.current = true;
 
-    const createAudio = (src: string) => {
-      const audio = new Audio();
-      audio.preload = "auto";
-      audio.src = src;
-      return audio;
-    };
-
-    const bgMusic = createAudio("./sounds/background.mp3");
+    const bgMusic = new Audio();
+    bgMusic.src = "/sounds/background.mp3";
     bgMusic.loop = true;
     bgMusic.volume = 0.3;
+    bgMusic.preload = "auto";
     setBackgroundMusic(bgMusic);
 
-    const hit = createAudio("./sounds/hit.mp3");
+    const hit = new Audio();
+    hit.src = "/sounds/hit.mp3";
     hit.volume = 0.5;
+    hit.preload = "auto";
     setHitSound(hit);
 
-    const success = createAudio("./sounds/success.mp3");
+    const success = new Audio();
+    success.src = "/sounds/success.mp3";
     success.volume = 0.5;
+    success.preload = "auto";
     setSuccessSound(success);
 
     const unlockAudio = async () => {
+      if (audioUnlocked.current) return;
+      
       try {
-        if (!audioContextRef.current) {
-          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-          if (AudioContextClass) {
-            audioContextRef.current = new AudioContextClass();
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContextClass) {
+          const audioContext = new AudioContextClass();
+          
+          if (audioContext.state === 'suspended') {
+            await audioContext.resume();
           }
-        }
-        
-        if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
-          await audioContextRef.current.resume();
-        }
-
-        bgMusic.load();
-        hit.load();
-        success.load();
-
-        const playPromise = bgMusic.play();
-        if (playPromise !== undefined) {
-          playPromise.then(() => {
+          
+          const buffer = audioContext.createBuffer(1, 1, 22050);
+          const source = audioContext.createBufferSource();
+          source.buffer = buffer;
+          source.connect(audioContext.destination);
+          source.start(0);
+          
+          bgMusic.load();
+          hit.load();
+          success.load();
+          
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          try {
+            await bgMusic.play();
             bgMusic.pause();
             bgMusic.currentTime = 0;
+            audioUnlocked.current = true;
             console.log("Audio unlocked successfully");
-          }).catch((e) => {
-            console.log("Audio unlock failed:", e.message);
-          });
+          } catch (playError) {
+            console.log("Audio play test failed, will retry on next gesture");
+          }
         }
       } catch (e) {
         console.log("Audio context error:", e);
       }
-
-      document.removeEventListener('touchstart', unlockAudio);
-      document.removeEventListener('touchend', unlockAudio);
-      document.removeEventListener('click', unlockAudio);
-      document.removeEventListener('keydown', unlockAudio);
     };
 
-    document.addEventListener('touchstart', unlockAudio, { passive: true });
-    document.addEventListener('touchend', unlockAudio, { passive: true });
-    document.addEventListener('click', unlockAudio);
-    document.addEventListener('keydown', unlockAudio);
+    const gestureHandler = () => {
+      unlockAudio();
+    };
+
+    document.addEventListener('touchstart', gestureHandler, { passive: true });
+    document.addEventListener('touchend', gestureHandler, { passive: true });
+    document.addEventListener('click', gestureHandler);
+    document.addEventListener('pointerdown', gestureHandler);
 
     return () => {
       bgMusic.pause();
       bgMusic.src = "";
-      document.removeEventListener('touchstart', unlockAudio);
-      document.removeEventListener('touchend', unlockAudio);
-      document.removeEventListener('click', unlockAudio);
-      document.removeEventListener('keydown', unlockAudio);
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-      }
+      document.removeEventListener('touchstart', gestureHandler);
+      document.removeEventListener('touchend', gestureHandler);
+      document.removeEventListener('click', gestureHandler);
+      document.removeEventListener('pointerdown', gestureHandler);
     };
   }, [setBackgroundMusic, setHitSound, setSuccessSound]);
 
