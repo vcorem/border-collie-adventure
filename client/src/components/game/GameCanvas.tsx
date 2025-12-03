@@ -2,14 +2,14 @@ import { useRef, useEffect, useCallback } from "react";
 import { usePlatformer, type Player, type Platform, type Enemy, type Collectible, type Hazard } from "@/lib/stores/usePlatformer";
 import { useAudio } from "@/lib/stores/useAudio";
 
-const GRAVITY = 0.5;
-const BASE_JUMP_FORCE = -11;
-const MAX_JUMP_FORCE = -15;
-const MOVE_SPEED = 3.5;
-const MAX_FALL_SPEED = 12;
+const GRAVITY = 0.35;
+const BASE_JUMP_FORCE = -10;
+const MAX_JUMP_FORCE = -13;
+const MOVE_SPEED = 2.5;
+const MAX_FALL_SPEED = 9;
 const CANVAS_WIDTH = 800;
 const CANVAS_HEIGHT = 600;
-const MOMENTUM_BUILD_RATE = 0.015;
+const MOMENTUM_BUILD_RATE = 0.012;
 const MAX_MOMENTUM = 1.0;
 
 interface Keys {
