@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { Capacitor } from "@capacitor/core";
 
 interface AudioState {
   isMuted: boolean;
@@ -17,26 +18,58 @@ interface AudioState {
 let hitPool: HTMLAudioElement[] = [];
 let successPool: HTMLAudioElement[] = [];
 let audioUnlocked = false;
+let unlockAttempts = 0;
 
-function createAudioPool(src: string, size: number): HTMLAudioElement[] {
+function getAudioPath(filename: string): string {
+  const isAndroid = Capacitor.getPlatform() === "android";
+  const base = isAndroid ? "https://localhost" : "";
+  const path = `${base}/sounds/${filename}`;
+  console.log(`Audio path for ${filename}: ${path} (platform: ${Capacitor.getPlatform()})`);
+  return path;
+}
+
+function createAudioElement(filename: string): HTMLAudioElement {
+  const audio = new Audio();
+  const path = getAudioPath(filename);
+  audio.src = path;
+  audio.preload = "auto";
+  audio.crossOrigin = "anonymous";
+  
+  audio.addEventListener("canplaythrough", () => {
+    console.log(`Audio ready: ${filename}`);
+  });
+  
+  audio.addEventListener("error", (e) => {
+    console.error(`Audio error for ${filename} (src: ${audio.src}):`, audio.error?.message || e);
+  });
+  
+  audio.load();
+  return audio;
+}
+
+function createAudioPool(filename: string, size: number): HTMLAudioElement[] {
   const pool: HTMLAudioElement[] = [];
   for (let i = 0; i < size; i++) {
-    const audio = new Audio(src);
-    audio.preload = "auto";
-    audio.load();
-    pool.push(audio);
+    pool.push(createAudioElement(filename));
   }
   return pool;
 }
 
-function playFromPool(pool: HTMLAudioElement[], volume: number): void {
-  if (!audioUnlocked) return;
+function playFromPool(pool: HTMLAudioElement[], volume: number, name: string): void {
+  if (!audioUnlocked) {
+    console.log(`Cannot play ${name}: audio not unlocked`);
+    return;
+  }
   
   for (const audio of pool) {
     if (audio.paused || audio.ended) {
       audio.volume = volume;
       audio.currentTime = 0;
-      audio.play().catch(() => {});
+      audio.play().then(() => {
+        console.log(`Playing ${name}`);
+      }).catch((e) => {
+        console.error(`Failed to play ${name} (src: ${audio.src}):`, e);
+      });
       return;
     }
   }
@@ -45,7 +78,9 @@ function playFromPool(pool: HTMLAudioElement[], volume: number): void {
     const audio = pool[0];
     audio.volume = volume;
     audio.currentTime = 0;
-    audio.play().catch(() => {});
+    audio.play().catch((e) => {
+      console.error(`Failed to play ${name}:`, e);
+    });
   }
 }
 
@@ -55,16 +90,14 @@ export const useAudio = create<AudioState>((set, get) => ({
   backgroundAudio: null,
   
   initAudio: () => {
-    console.log("Audio init: Creating audio pools");
+    console.log("Audio init - Platform:", Capacitor.getPlatform());
     
-    hitPool = createAudioPool("/sounds/hit.mp3", 3);
-    successPool = createAudioPool("/sounds/success.mp3", 2);
+    hitPool = createAudioPool("hit.mp3", 3);
+    successPool = createAudioPool("success.mp3", 2);
     
-    const bgAudio = new Audio("/sounds/background.mp3");
+    const bgAudio = createAudioElement("background.mp3");
     bgAudio.loop = true;
     bgAudio.volume = 0.3;
-    bgAudio.preload = "auto";
-    bgAudio.load();
     
     set({ backgroundAudio: bgAudio });
     console.log("Audio init complete");
@@ -73,35 +106,54 @@ export const useAudio = create<AudioState>((set, get) => ({
   unlockAudio: () => {
     if (audioUnlocked) return;
     
-    console.log("Unlocking audio...");
+    unlockAttempts++;
+    console.log(`Unlocking audio (attempt ${unlockAttempts})...`);
     
     const { backgroundAudio } = get();
     
+    const unlockElement = async (audio: HTMLAudioElement, name: string): Promise<boolean> => {
+      try {
+        const originalVolume = audio.volume;
+        audio.muted = true;
+        audio.volume = 0;
+        
+        await audio.play();
+        audio.pause();
+        
+        audio.muted = false;
+        audio.volume = originalVolume;
+        audio.currentTime = 0;
+        
+        console.log(`Unlocked: ${name}`);
+        return true;
+      } catch (e) {
+        console.error(`Failed to unlock ${name} (src: ${audio.src}):`, e);
+        return false;
+      }
+    };
+    
     const unlockAll = async () => {
-      const allAudio = [...hitPool, ...successPool];
-      if (backgroundAudio) allAudio.push(backgroundAudio);
+      let successCount = 0;
       
-      for (const audio of allAudio) {
-        try {
-          audio.muted = true;
-          audio.volume = 0;
-          await audio.play();
-          audio.pause();
-          audio.muted = false;
-          audio.currentTime = 0;
-        } catch (e) {
-          // Ignore errors
-        }
+      for (let i = 0; i < hitPool.length; i++) {
+        if (await unlockElement(hitPool[i], `hit-${i}`)) successCount++;
       }
       
-      // Restore volumes
-      for (const audio of hitPool) audio.volume = 0.5;
-      for (const audio of successPool) audio.volume = 0.7;
-      if (backgroundAudio) backgroundAudio.volume = 0.3;
+      for (let i = 0; i < successPool.length; i++) {
+        if (await unlockElement(successPool[i], `success-${i}`)) successCount++;
+      }
       
-      audioUnlocked = true;
-      set({ isUnlocked: true });
-      console.log("Audio unlocked successfully");
+      if (backgroundAudio) {
+        if (await unlockElement(backgroundAudio, "background")) successCount++;
+      }
+      
+      if (successCount > 0) {
+        audioUnlocked = true;
+        set({ isUnlocked: true });
+        console.log(`Audio unlocked! (${successCount} elements)`);
+      } else {
+        console.log("No audio elements could be unlocked - will retry on next interaction");
+      }
     };
     
     unlockAll();
@@ -120,20 +172,19 @@ export const useAudio = create<AudioState>((set, get) => ({
   
   playHit: () => {
     const { isMuted } = get();
-    if (isMuted || !audioUnlocked) return;
-    
-    playFromPool(hitPool, 0.5);
+    if (isMuted) return;
+    playFromPool(hitPool, 0.5, "hit");
   },
   
   playSuccess: () => {
     const { isMuted } = get();
-    if (isMuted || !audioUnlocked) return;
-    
-    playFromPool(successPool, 0.7);
+    if (isMuted) return;
+    playFromPool(successPool, 0.7, "success");
   },
   
   playBackgroundMusic: () => {
     const { isMuted, backgroundAudio } = get();
+    
     if (isMuted) return;
     
     if (!audioUnlocked) {
@@ -144,11 +195,12 @@ export const useAudio = create<AudioState>((set, get) => ({
     
     if (backgroundAudio) {
       backgroundAudio.currentTime = 0;
+      backgroundAudio.volume = 0.3;
       backgroundAudio.play().then(() => {
         console.log("Background music started");
       }).catch((e) => {
-        console.log("Background music failed, retrying...", e);
-        setTimeout(() => get().playBackgroundMusic(), 500);
+        console.error("Background music failed:", e);
+        setTimeout(() => get().playBackgroundMusic(), 1000);
       });
     }
   },
