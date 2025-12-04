@@ -12,30 +12,35 @@ export function GameUI() {
     checkTouch();
   }, []);
   const { phase, score, lives, currentLevel, totalLevels, startGame, restartGame, resumeGame, pauseGame, nextLevel, continueFromLastLevel, lastReachedLevel, toggleContinueFromLastLevel } = usePlatformer();
-  const { isMuted, toggleMute, playBackgroundMusic, stopBackgroundMusic } = useAudio();
+  const { isMuted, toggleMute, playBackgroundMusic, stopBackgroundMusic, unlockAudio } = useAudio();
 
-  const handleToggleMute = () => {
+  const handleToggleMute = async () => {
+    await unlockAudio();
     toggleMute();
     if (isMuted) {
-      // Was muted, now unmuted - play music
       playBackgroundMusic();
     } else {
-      // Was unmuted, now muted - stop music
       stopBackgroundMusic();
     }
   };
 
-  const handleStartGame = () => {
+  const handleStartGame = async () => {
+    await unlockAudio();
     startGame();
     if (!isMuted) {
-      playBackgroundMusic();
+      setTimeout(() => {
+        playBackgroundMusic();
+      }, 100);
     }
   };
 
-  const handleRestartGame = () => {
+  const handleRestartGame = async () => {
+    await unlockAudio();
     restartGame();
     if (!isMuted) {
-      playBackgroundMusic();
+      setTimeout(() => {
+        playBackgroundMusic();
+      }, 100);
     }
   };
 
