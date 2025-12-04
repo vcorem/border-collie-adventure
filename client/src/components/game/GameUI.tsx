@@ -1,17 +1,28 @@
 import { usePlatformer } from "@/lib/stores/usePlatformer";
 import { useAudio } from "@/lib/stores/useAudio";
+import { useState, useEffect } from "react";
 
 export function GameUI() {
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  
+  useEffect(() => {
+    const checkTouch = () => {
+      setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
+    };
+    checkTouch();
+  }, []);
   const { phase, score, lives, currentLevel, totalLevels, startGame, restartGame, resumeGame, pauseGame, nextLevel, continueFromLastLevel, lastReachedLevel, toggleContinueFromLastLevel } = usePlatformer();
   const { isMuted, toggleMute, playBackgroundMusic, stopBackgroundMusic } = useAudio();
 
   const handleToggleMute = () => {
-    if (!isMuted) {
-      stopBackgroundMusic();
-    } else {
-      playBackgroundMusic();
-    }
     toggleMute();
+    if (isMuted) {
+      // Was muted, now unmuted - play music
+      playBackgroundMusic();
+    } else {
+      // Was unmuted, now muted - stop music
+      stopBackgroundMusic();
+    }
   };
 
   const handleStartGame = () => {
@@ -252,8 +263,8 @@ export function GameUI() {
         </div>
       )}
 
-      {phase === "playing" && (
-        <div className="absolute bottom-4 left-4 bg-black/50 rounded-lg px-3 py-1 text-white/70 text-xs hidden md:block">
+      {phase === "playing" && !isTouchDevice && (
+        <div className="absolute bottom-4 left-4 bg-black/50 rounded-lg px-3 py-1 text-white/70 text-xs">
           Arrow Keys / WASD to move • Space to jump • Collect all items & defeat bulldogs!
         </div>
       )}
