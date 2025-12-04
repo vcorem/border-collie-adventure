@@ -399,7 +399,15 @@ export function GameCanvas({ touchControls }: GameCanvasProps) {
   useEffect(() => {
     const gameLoop = (timestamp: number) => {
       const state = usePlatformer.getState();
-      const { phase, levelWidth, setPlayer, setCameraX, defeatEnemy, collectItem, loseLife, levelComplete, updatePlatforms } = state;
+      const { phase, levelWidth, setPlayer, setCameraX, defeatEnemy, collectItem, loseLife, levelComplete, updatePlatforms, isDying, updateDeathAnimation, finishDeath } = state;
+      
+      if (isDying) {
+        const animationComplete = updateDeathAnimation();
+        if (animationComplete) {
+          finishDeath();
+        }
+        return;
+      }
       
       if (phase !== "playing") {
         momentumRef.current = 0;
@@ -639,7 +647,27 @@ export function GameCanvas({ touchControls }: GameCanvasProps) {
         drawBulldog(ctx, enemy.x, enemy.y, enemy.width, enemy.height, enemy.velocityX > 0, enemy.isDefeated, platformTimeRef.current * 0.1);
       }
       
-      drawBorderCollie(ctx, currentPlayer.x, currentPlayer.y, currentPlayer.width, currentPlayer.height, currentPlayer.facingRight, currentPlayer.walkFrame);
+      const { isDying, deathAnimationProgress } = state;
+      if (isDying) {
+        ctx.save();
+        const centerX = currentPlayer.x + currentPlayer.width / 2;
+        const centerY = currentPlayer.y + currentPlayer.height / 2;
+        const fallOffset = deathAnimationProgress * 100;
+        const rotation = deathAnimationProgress * Math.PI * 4;
+        const scale = 1 - deathAnimationProgress * 0.3;
+        const opacity = 1 - deathAnimationProgress * 0.5;
+        
+        ctx.globalAlpha = opacity;
+        ctx.translate(centerX, centerY + fallOffset);
+        ctx.rotate(rotation);
+        ctx.scale(scale, scale);
+        ctx.translate(-centerX, -centerY - fallOffset);
+        
+        drawBorderCollie(ctx, currentPlayer.x, currentPlayer.y + fallOffset, currentPlayer.width, currentPlayer.height, currentPlayer.facingRight, currentPlayer.walkFrame);
+        ctx.restore();
+      } else {
+        drawBorderCollie(ctx, currentPlayer.x, currentPlayer.y, currentPlayer.width, currentPlayer.height, currentPlayer.facingRight, currentPlayer.walkFrame);
+      }
       
       ctx.restore();
     };
