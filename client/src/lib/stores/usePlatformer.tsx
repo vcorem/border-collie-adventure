@@ -84,6 +84,8 @@ interface PlatformerState {
   cameraX: number;
   continueFromLastLevel: boolean;
   lastReachedLevel: number;
+  isDying: boolean;
+  deathAnimationProgress: number;
 
   setPhase: (phase: GamePhase) => void;
   startGame: () => void;
@@ -106,6 +108,8 @@ interface PlatformerState {
   
   initLevel: () => void;
   toggleContinueFromLastLevel: () => void;
+  updateDeathAnimation: () => boolean;
+  finishDeath: () => void;
 }
 
 const INITIAL_PLAYER: Player = {
@@ -134,19 +138,19 @@ interface LevelConfig {
 }
 
 const getLevelConfig = (level: number): LevelConfig => {
-  const baseWidth = 1800 + level * 100;
+  const baseWidth = 1600 + level * 80;
   const difficulty = Math.min(level / 30, 1);
   
   return {
-    levelWidth: Math.min(baseWidth, 5000),
-    groundSegments: 4 + Math.floor(level / 5),
-    gapChance: 0.1 + difficulty * 0.25,
-    floatingPlatforms: 6 + Math.floor(level / 2),
-    movingPlatformChance: Math.min(0.1 + level * 0.03, 0.5),
-    enemyCount: 3 + Math.floor(level / 2),
-    enemySpeed: 1.0 + difficulty * 1.5,
-    collectibleCount: 5 + Math.floor(level / 3),
-    hazardCount: Math.floor(level / 2),
+    levelWidth: Math.min(baseWidth, 4000),
+    groundSegments: 3 + Math.floor(level / 6),
+    gapChance: 0.05 + difficulty * 0.2,
+    floatingPlatforms: 4 + Math.floor(level / 3),
+    movingPlatformChance: Math.min(0.05 + level * 0.02, 0.4),
+    enemyCount: 2 + Math.floor(level / 3),
+    enemySpeed: 0.8 + difficulty * 1.2,
+    collectibleCount: 4 + Math.floor(level / 4),
+    hazardCount: Math.max(0, Math.floor((level - 3) / 3)),
   };
 };
 
@@ -237,7 +241,7 @@ const generateLevel = (level: number): LevelData => {
     }
   }
   
-  const groundPlatforms = platforms.filter(p => p.y === groundY && p.width > 100);
+  const groundPlatforms = platforms.filter(p => p.y === groundY && p.width > 100 && p.x > 250);
   for (let i = 0; i < config.enemyCount && groundPlatforms.length > 0; i++) {
     const platIndex = i % groundPlatforms.length;
     const plat = groundPlatforms[platIndex];
@@ -280,17 +284,18 @@ const generateLevel = (level: number): LevelData => {
   }
   
   let hazardId = 1;
+  const hazardPlatforms = platforms.filter(p => p.y === groundY && p.width > 150 && p.x > 400);
   for (let i = 0; i < config.hazardCount; i++) {
-    const groundPlat = groundPlatforms[i % groundPlatforms.length];
+    const groundPlat = hazardPlatforms[i % hazardPlatforms.length];
     if (!groundPlat) continue;
     
-    const x = groundPlat.x + 50 + random() * (groundPlat.width - 100);
+    const x = groundPlat.x + 60 + random() * (groundPlat.width - 120);
     
     hazards.push({
       id: hazardId++,
       x,
       y: groundY - 20,
-      width: 40 + random() * 30,
+      width: 30 + random() * 20,
       height: 20,
       type: "spike",
     });
@@ -326,6 +331,8 @@ export const usePlatformer = create<PlatformerState>()(
     cameraX: 0,
     continueFromLastLevel: false,
     lastReachedLevel: 1,
+    isDying: false,
+    deathAnimationProgress: 0,
 
     setPhase: (phase) => set({ phase }),
     
@@ -428,9 +435,27 @@ export const usePlatformer = create<PlatformerState>()(
     },
     
     loseLife: () => {
+      const { isDying } = get();
+      if (isDying) return;
+      set({ isDying: true, deathAnimationProgress: 0 });
+    },
+    
+    updateDeathAnimation: () => {
+      const { deathAnimationProgress, isDying } = get();
+      if (!isDying) return false;
+      
+      const newProgress = deathAnimationProgress + 0.05;
+      if (newProgress >= 1) {
+        return true;
+      }
+      set({ deathAnimationProgress: newProgress });
+      return false;
+    },
+    
+    finishDeath: () => {
       const { lives, currentLevel } = get();
       if (lives <= 1) {
-        set({ lives: 0, phase: "gameOver" });
+        set({ lives: 0, phase: "gameOver", isDying: false, deathAnimationProgress: 0 });
       } else {
         const level = getLevelData(currentLevel);
         set((state) => ({
@@ -441,6 +466,8 @@ export const usePlatformer = create<PlatformerState>()(
           collectibles: level.collectibles,
           hazards: level.hazards,
           cameraX: 0,
+          isDying: false,
+          deathAnimationProgress: 0,
         }));
       }
     },
