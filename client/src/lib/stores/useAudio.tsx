@@ -41,11 +41,16 @@ export const useAudio = create<AudioState>((set, get) => ({
   
   playHit: () => {
     const { hitSound, isMuted } = get();
+    console.log("playHit called", { hasSound: !!hitSound, isMuted });
     if (hitSound && !isMuted) {
       try {
-        const soundClone = hitSound.cloneNode() as HTMLAudioElement;
-        soundClone.volume = 0.3;
-        soundClone.play().catch(() => {});
+        hitSound.currentTime = 0;
+        hitSound.volume = 1.0;
+        hitSound.play().then(() => {
+          console.log("Hit sound played");
+        }).catch((e) => {
+          console.log("Hit sound error:", e.message);
+        });
       } catch (e) {}
     }
   },
@@ -61,12 +66,22 @@ export const useAudio = create<AudioState>((set, get) => ({
   },
   
   playBackgroundMusic: () => {
-    const { backgroundMusic, isMuted } = get();
-    if (backgroundMusic && !isMuted) {
+    const { backgroundMusic } = get();
+    console.log("playBackgroundMusic called", { hasMusic: !!backgroundMusic });
+    if (backgroundMusic) {
       try {
         backgroundMusic.currentTime = 0;
-        backgroundMusic.play().catch(() => {});
-      } catch (e) {}
+        const playPromise = backgroundMusic.play();
+        if (playPromise) {
+          playPromise.then(() => {
+            console.log("Background music started successfully");
+          }).catch((err) => {
+            console.error("Background music play error:", err.message);
+          });
+        }
+      } catch (e) {
+        console.error("Background music exception:", e);
+      }
     }
   },
   
