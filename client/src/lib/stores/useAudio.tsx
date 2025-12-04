@@ -1,9 +1,9 @@
 import { create } from "zustand";
+import { Capacitor } from "@capacitor/core";
+import { NativeAudio } from "@capacitor-community/native-audio";
 
-// Detect if running on Android WebView (Capacitor app)
-const isAndroid = () => {
-  const ua = navigator.userAgent.toLowerCase();
-  return ua.includes('android') && (ua.includes('wv') || (window as any).Capacitor);
+const isNativeApp = () => {
+  return Capacitor.isNativePlatform();
 };
 
 interface AudioState {
@@ -13,14 +13,10 @@ interface AudioState {
   successBuffer: AudioBuffer | null;
   backgroundSource: AudioBufferSourceNode | null;
   
-  backgroundAudio: HTMLAudioElement | null;
-  successAudio: HTMLAudioElement | null;
-  hitAudio: HTMLAudioElement | null;
-  
   isMuted: boolean;
   isUnlocked: boolean;
-  isAndroidDevice: boolean;
-  activeMusicPath: 'none' | 'webaudio' | 'html';
+  isNative: boolean;
+  nativeLoaded: boolean;
   
   initAudio: () => Promise<void>;
   unlockAudio: () => Promise<void>;
@@ -49,15 +45,6 @@ async function loadAudioBuffer(context: AudioContext, url: string): Promise<Audi
   }
 }
 
-function createAudioElement(url: string, loop: boolean, volume: number): HTMLAudioElement {
-  const audio = new Audio(url);
-  audio.loop = loop;
-  audio.volume = volume;
-  audio.preload = "auto";
-  audio.load();
-  return audio;
-}
-
 export const useAudio = create<AudioState>((set, get) => ({
   audioContext: null,
   backgroundBuffer: null,
@@ -65,35 +52,53 @@ export const useAudio = create<AudioState>((set, get) => ({
   successBuffer: null,
   backgroundSource: null,
   
-  backgroundAudio: null,
-  successAudio: null,
-  hitAudio: null,
-  
   isMuted: false,
   isUnlocked: false,
-  isAndroidDevice: false,
-  activeMusicPath: 'none',
+  isNative: false,
+  nativeLoaded: false,
   
   initAudio: async () => {
-    const { audioContext } = get();
-    if (audioContext) return;
+    const native = isNativeApp();
+    console.log("Audio init - Native platform:", native);
+    set({ isNative: native });
     
-    const androidDevice = isAndroid();
-    console.log("Audio init - Android device:", androidDevice);
-    set({ isAndroidDevice: androidDevice });
-    
-    // Create HTMLAudioElements for all platforms (primary for Android, fallback for web)
-    const bgAudio = createAudioElement("/sounds/background.mp3", true, 0.3);
-    const successAudioEl = createAudioElement("/sounds/success.mp3", false, 0.7);
-    const hitAudioEl = createAudioElement("/sounds/hit.mp3", false, 0.5);
-    set({ backgroundAudio: bgAudio, successAudio: successAudioEl, hitAudio: hitAudioEl });
-    
-    // Only create Web Audio API for non-Android (or skip entirely on Android)
-    if (!androidDevice) {
+    if (native) {
+      try {
+        console.log("Loading native audio assets...");
+        
+        await NativeAudio.preload({
+          assetId: "background",
+          assetPath: "sounds/background.mp3",
+          audioChannelNum: 1,
+          isUrl: false,
+        });
+        console.log("Background audio preloaded");
+        
+        await NativeAudio.preload({
+          assetId: "hit",
+          assetPath: "sounds/hit.mp3",
+          audioChannelNum: 1,
+          isUrl: false,
+        });
+        console.log("Hit audio preloaded");
+        
+        await NativeAudio.preload({
+          assetId: "success",
+          assetPath: "sounds/success.mp3",
+          audioChannelNum: 1,
+          isUrl: false,
+        });
+        console.log("Success audio preloaded");
+        
+        set({ nativeLoaded: true, isUnlocked: true });
+        console.log("Native audio loaded successfully");
+      } catch (e) {
+        console.error("Native audio init error:", e);
+      }
+    } else {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioContextClass) {
-        // Use 44100 sample rate to match common audio file rates
-        const ctx = new AudioContextClass({ sampleRate: 44100 });
+        const ctx = new AudioContextClass();
         set({ audioContext: ctx });
         
         const [bgBuffer, hitBuffer, successBuffer] = await Promise.all([
@@ -110,80 +115,68 @@ export const useAudio = create<AudioState>((set, get) => ({
         
         console.log("Web Audio buffers loaded:", { bg: !!bgBuffer, hit: !!hitBuffer, success: !!successBuffer });
       }
-    } else {
-      console.log("Android detected - using HTMLAudioElement exclusively");
     }
   },
   
   unlockAudio: async () => {
-    const { isUnlocked, backgroundAudio, successAudio, hitAudio, audioContext, isAndroidDevice } = get();
+    const { isUnlocked, audioContext, isNative } = get();
     if (isUnlocked) return;
     
     console.log("Unlocking audio...");
     
-    // Resume AudioContext if exists (non-Android)
+    if (isNative) {
+      set({ isUnlocked: true });
+      return;
+    }
+    
     if (audioContext && audioContext.state === "suspended") {
       try {
         await audioContext.resume();
-      } catch (e) {}
+        console.log("AudioContext resumed");
+      } catch (e) {
+        console.error("AudioContext resume error:", e);
+      }
     }
     
-    // Unlock all HTML audio elements with muted play/pause
-    const unlockElement = async (audio: HTMLAudioElement | null) => {
-      if (!audio) return;
-      try {
-        audio.muted = true;
-        await audio.play();
-        audio.pause();
-        audio.muted = false;
-        audio.currentTime = 0;
-      } catch (e) {}
-    };
-    
-    await Promise.all([
-      unlockElement(backgroundAudio),
-      unlockElement(successAudio),
-      unlockElement(hitAudio),
-    ]);
-    
     set({ isUnlocked: true });
-    console.log("Audio unlocked, isAndroid:", isAndroidDevice);
   },
   
   toggleMute: () => {
-    const { isMuted, backgroundSource, backgroundAudio, activeMusicPath } = get();
+    const { isMuted, backgroundSource, isNative } = get();
     const newMutedState = !isMuted;
     set({ isMuted: newMutedState });
     
     if (newMutedState) {
-      // Stop all music
-      if (backgroundSource) {
+      if (isNative) {
+        try {
+          NativeAudio.stop({ assetId: "background" }).catch(() => {});
+        } catch (e) {}
+      } else if (backgroundSource) {
         try { backgroundSource.stop(); } catch (e) {}
         set({ backgroundSource: null });
       }
-      if (backgroundAudio) {
-        backgroundAudio.pause();
-        backgroundAudio.currentTime = 0;
-      }
-      set({ activeMusicPath: 'none' });
     }
   },
   
   playHit: () => {
-    const { audioContext, hitBuffer, hitAudio, isMuted, isAndroidDevice } = get();
+    const { audioContext, isMuted, isNative, nativeLoaded } = get();
     if (isMuted) return;
     
-    // On Android, use HTMLAudioElement
-    if (isAndroidDevice && hitAudio) {
+    console.log("playHit - native:", isNative, "loaded:", nativeLoaded);
+    
+    if (isNative && nativeLoaded) {
       try {
-        hitAudio.currentTime = 0;
-        hitAudio.play().catch(() => {});
-        console.log("Hit via HTMLAudio (Android)");
-        return;
-      } catch (e) {}
+        NativeAudio.play({ assetId: "hit" }).then(() => {
+          console.log("Hit played via NativeAudio");
+        }).catch((e) => {
+          console.error("NativeAudio hit error:", e);
+        });
+      } catch (e) {
+        console.error("Hit sound error:", e);
+      }
+      return;
     }
     
-    // On web, try Web Audio API first with synthesized beep (more reliable)
     if (audioContext) {
       try {
         if (audioContext.state === "suspended") {
@@ -205,37 +198,32 @@ export const useAudio = create<AudioState>((set, get) => ({
         
         oscillator.start(audioContext.currentTime);
         oscillator.stop(audioContext.currentTime + 0.3);
-        return;
-      } catch (e) {}
-    }
-    
-    // Fallback to HTMLAudio
-    if (hitAudio) {
-      hitAudio.currentTime = 0;
-      hitAudio.play().catch(() => {});
+        console.log("Hit played via Web Audio (synthesized)");
+      } catch (e) {
+        console.error("Web Audio hit error:", e);
+      }
     }
   },
   
   playSuccess: () => {
-    const { audioContext, successBuffer, successAudio, isMuted, isAndroidDevice } = get();
+    const { audioContext, successBuffer, isMuted, isNative, nativeLoaded } = get();
     if (isMuted) return;
     
-    console.log("playSuccess - isAndroid:", isAndroidDevice);
+    console.log("playSuccess - native:", isNative, "loaded:", nativeLoaded);
     
-    // On Android, use HTMLAudioElement exclusively
-    if (isAndroidDevice && successAudio) {
+    if (isNative && nativeLoaded) {
       try {
-        successAudio.currentTime = 0;
-        successAudio.play().then(() => {
-          console.log("Success via HTMLAudio (Android)");
+        NativeAudio.play({ assetId: "success" }).then(() => {
+          console.log("Success played via NativeAudio");
         }).catch((e) => {
-          console.log("Success HTMLAudio failed:", e);
+          console.error("NativeAudio success error:", e);
         });
-        return;
-      } catch (e) {}
+      } catch (e) {
+        console.error("Success sound error:", e);
+      }
+      return;
     }
     
-    // On web, use Web Audio API
     if (audioContext && successBuffer) {
       try {
         if (audioContext.state === "suspended") {
@@ -250,23 +238,18 @@ export const useAudio = create<AudioState>((set, get) => ({
         source.buffer = successBuffer;
         source.connect(gainNode);
         source.start(0);
-        console.log("Success via WebAudio");
-        return;
-      } catch (e) {}
-    }
-    
-    // Fallback
-    if (successAudio) {
-      successAudio.currentTime = 0;
-      successAudio.play().catch(() => {});
+        console.log("Success played via Web Audio");
+      } catch (e) {
+        console.error("Web Audio success error:", e);
+      }
     }
   },
   
   playBackgroundMusic: () => {
     const state = get();
-    const { audioContext, backgroundBuffer, backgroundSource, backgroundAudio, isMuted, isUnlocked, isAndroidDevice, activeMusicPath } = state;
+    const { audioContext, backgroundBuffer, backgroundSource, isMuted, isUnlocked, isNative, nativeLoaded } = state;
     
-    console.log("playBackgroundMusic - isAndroid:", isAndroidDevice, "activePath:", activeMusicPath);
+    console.log("playBackgroundMusic - native:", isNative, "loaded:", nativeLoaded, "unlocked:", isUnlocked);
     
     if (isMuted) return;
     
@@ -275,38 +258,28 @@ export const useAudio = create<AudioState>((set, get) => ({
       return;
     }
     
-    // Stop any existing music first to prevent double playback
-    if (backgroundSource) {
-      try { backgroundSource.stop(); } catch (e) {}
-      set({ backgroundSource: null });
-    }
-    if (backgroundAudio && activeMusicPath === 'html') {
-      backgroundAudio.pause();
-      backgroundAudio.currentTime = 0;
-    }
-    
-    // On Android, use ONLY HTMLAudioElement (no Web Audio)
-    if (isAndroidDevice) {
-      if (backgroundAudio) {
-        backgroundAudio.currentTime = 0;
-        backgroundAudio.play().then(() => {
-          console.log("Background music via HTMLAudio (Android) - EXCLUSIVE");
-          set({ activeMusicPath: 'html' });
+    if (isNative && nativeLoaded) {
+      try {
+        NativeAudio.stop({ assetId: "background" }).catch(() => {});
+        
+        NativeAudio.setVolume({ assetId: "background", volume: 0.3 }).catch(() => {});
+        
+        NativeAudio.loop({ assetId: "background" }).then(() => {
+          console.log("Background music looping via NativeAudio");
         }).catch((e) => {
-          console.log("Background HTMLAudio failed:", e);
-          // Retry once
-          setTimeout(() => {
-            if (!get().isMuted && backgroundAudio) {
-              backgroundAudio.play().catch(() => {});
-              set({ activeMusicPath: 'html' });
-            }
-          }, 500);
+          console.error("NativeAudio background error:", e);
         });
+      } catch (e) {
+        console.error("Background music error:", e);
       }
       return;
     }
     
-    // On web, use Web Audio API
+    if (backgroundSource) {
+      try { backgroundSource.stop(); } catch (e) {}
+      set({ backgroundSource: null });
+    }
+    
     if (audioContext && backgroundBuffer) {
       try {
         if (audioContext.state === "suspended") {
@@ -323,32 +296,26 @@ export const useAudio = create<AudioState>((set, get) => ({
         source.connect(gainNode);
         source.start(0);
         
-        set({ backgroundSource: source, activeMusicPath: 'webaudio' });
-        console.log("Background music via WebAudio");
-        return;
-      } catch (e) {}
-    }
-    
-    // Fallback for web if Web Audio fails
-    if (backgroundAudio) {
-      backgroundAudio.currentTime = 0;
-      backgroundAudio.play().then(() => {
-        set({ activeMusicPath: 'html' });
-      }).catch(() => {});
+        set({ backgroundSource: source });
+        console.log("Background music started via Web Audio");
+      } catch (e) {
+        console.error("Web Audio background error:", e);
+      }
     }
   },
   
   stopBackgroundMusic: () => {
-    const { backgroundSource, backgroundAudio, activeMusicPath } = get();
+    const { backgroundSource, isNative } = get();
+    
+    if (isNative) {
+      try {
+        NativeAudio.stop({ assetId: "background" }).catch(() => {});
+      } catch (e) {}
+    }
     
     if (backgroundSource) {
       try { backgroundSource.stop(); } catch (e) {}
       set({ backgroundSource: null });
     }
-    if (backgroundAudio) {
-      backgroundAudio.pause();
-      backgroundAudio.currentTime = 0;
-    }
-    set({ activeMusicPath: 'none' });
   }
 }));
