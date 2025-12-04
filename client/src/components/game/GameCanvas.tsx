@@ -33,6 +33,8 @@ export function GameCanvas({ touchControls }: GameCanvasProps) {
   const platformTimeRef = useRef<number>(0);
   const borderCollieImageRef = useRef<HTMLImageElement | null>(null);
   const momentumRef = useRef<number>(0);
+  const previousPlatformPositionsRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const standingOnPlatformRef = useRef<number | null>(null);
   
   const { playHit, playSuccess } = useAudio();
 
@@ -81,10 +83,12 @@ export function GameCanvas({ touchControls }: GameCanvasProps) {
     });
   }, []);
 
-  const checkPlatformCollision = useCallback((newPlayer: Player, platforms: Platform[], prevPlayerY: number) => {
+  const checkPlatformCollision = useCallback((newPlayer: Player, platforms: Platform[], prevPlayerY: number): { player: Player; standingOnIndex: number | null } => {
     let updatedPlayer = { ...newPlayer };
+    let standingOnIndex: number | null = null;
     
-    for (const platform of platforms) {
+    for (let i = 0; i < platforms.length; i++) {
+      const platform = platforms[i];
       if (checkCollision(updatedPlayer, platform)) {
         const playerBottom = updatedPlayer.y + updatedPlayer.height;
         const playerTop = updatedPlayer.y;
@@ -93,11 +97,12 @@ export function GameCanvas({ touchControls }: GameCanvasProps) {
         
         const prevPlayerBottom = prevPlayerY + updatedPlayer.height;
         
-        if (prevPlayerBottom <= platformTop && playerBottom > platformTop) {
+        if (prevPlayerBottom <= platformTop + 5 && playerBottom > platformTop) {
           updatedPlayer.y = platformTop - updatedPlayer.height;
           updatedPlayer.velocityY = 0;
           updatedPlayer.isOnGround = true;
           updatedPlayer.isJumping = false;
+          standingOnIndex = i;
         } else if (playerTop < platformBottom && prevPlayerY >= platformBottom) {
           updatedPlayer.y = platformBottom;
           updatedPlayer.velocityY = 0;
@@ -109,7 +114,7 @@ export function GameCanvas({ touchControls }: GameCanvasProps) {
       }
     }
     
-    return updatedPlayer;
+    return { player: updatedPlayer, standingOnIndex };
   }, [checkCollision]);
 
   const updateEnemies = useCallback((enemies: Enemy[]) => {
@@ -435,11 +440,30 @@ export function GameCanvas({ touchControls }: GameCanvasProps) {
       const currentPlatforms = state.platforms;
       const currentHazards = state.hazards;
       
+      const previousPositions = previousPlatformPositionsRef.current;
+      currentPlatforms.forEach((platform, index) => {
+        if (platform.isMoving) {
+          previousPositions.set(index, { x: platform.x, y: platform.y });
+        }
+      });
+      
       const updatedPlatforms = updateMovingPlatforms(currentPlatforms, platformTimeRef.current);
       updatePlatforms(updatedPlatforms);
       
       let newPlayer: Player = { ...currentPlayer };
       const prevPlayerY = currentPlayer.y;
+      
+      const lastStandingIndex = standingOnPlatformRef.current;
+      if (lastStandingIndex !== null && updatedPlatforms[lastStandingIndex]?.isMoving) {
+        const platform = updatedPlatforms[lastStandingIndex];
+        const prevPos = previousPositions.get(lastStandingIndex);
+        if (prevPos && platform) {
+          const deltaX = platform.x - prevPos.x;
+          const deltaY = platform.y - prevPos.y;
+          newPlayer.x += deltaX;
+          newPlayer.y += deltaY;
+        }
+      }
       
       newPlayer.velocityX = 0;
       const isMoving = keys.left || keys.right;
@@ -490,7 +514,9 @@ export function GameCanvas({ touchControls }: GameCanvasProps) {
       }
       
       newPlayer.isOnGround = false;
-      newPlayer = checkPlatformCollision(newPlayer, updatedPlatforms, prevPlayerY);
+      const collisionResult = checkPlatformCollision(newPlayer, updatedPlatforms, prevPlayerY);
+      newPlayer = collisionResult.player;
+      standingOnPlatformRef.current = collisionResult.standingOnIndex;
       
       if (newPlayer.y > 650) {
         loseLife();
