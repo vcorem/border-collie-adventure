@@ -465,28 +465,33 @@ export function GameCanvas({ touchControls }: GameCanvasProps) {
         }
       }
       
-      newPlayer.velocityX = 0;
       const isMoving = keys.left || keys.right;
       
-      if (keys.left) {
-        newPlayer.velocityX = -MOVE_SPEED;
-        newPlayer.facingRight = false;
-        newPlayer.walkFrame = (newPlayer.walkFrame + 1) % 60;
+      // Only allow direction changes when on the ground - no mid-air control
+      if (newPlayer.isOnGround) {
+        newPlayer.velocityX = 0;
+        
+        if (keys.left) {
+          newPlayer.velocityX = -MOVE_SPEED;
+          newPlayer.facingRight = false;
+          newPlayer.walkFrame = (newPlayer.walkFrame + 1) % 60;
+        }
+        if (keys.right) {
+          newPlayer.velocityX = MOVE_SPEED;
+          newPlayer.facingRight = true;
+          newPlayer.walkFrame = (newPlayer.walkFrame + 1) % 60;
+        }
+        
+        if (!keys.left && !keys.right) {
+          newPlayer.walkFrame = 0;
+          momentumRef.current = Math.max(0, momentumRef.current - 0.03);
+        }
+        
+        if (isMoving) {
+          momentumRef.current = Math.min(MAX_MOMENTUM, momentumRef.current + MOMENTUM_BUILD_RATE);
+        }
       }
-      if (keys.right) {
-        newPlayer.velocityX = MOVE_SPEED;
-        newPlayer.facingRight = true;
-        newPlayer.walkFrame = (newPlayer.walkFrame + 1) % 60;
-      }
-      
-      if (!keys.left && !keys.right) {
-        newPlayer.walkFrame = 0;
-        momentumRef.current = Math.max(0, momentumRef.current - 0.03);
-      }
-      
-      if (isMoving && newPlayer.isOnGround) {
-        momentumRef.current = Math.min(MAX_MOMENTUM, momentumRef.current + MOMENTUM_BUILD_RATE);
-      }
+      // In mid-air: maintain horizontal velocity, no direction changes allowed
       
       if (keys.jump && newPlayer.isOnGround && !newPlayer.isJumping) {
         const momentum = momentumRef.current;
