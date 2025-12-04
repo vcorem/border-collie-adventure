@@ -1,14 +1,26 @@
 import { create } from "zustand";
 
+// Detect if running on Android WebView (Capacitor app)
+const isAndroid = () => {
+  const ua = navigator.userAgent.toLowerCase();
+  return ua.includes('android') && (ua.includes('wv') || (window as any).Capacitor);
+};
+
 interface AudioState {
   audioContext: AudioContext | null;
+  backgroundBuffer: AudioBuffer | null;
+  hitBuffer: AudioBuffer | null;
+  successBuffer: AudioBuffer | null;
+  backgroundSource: AudioBufferSourceNode | null;
+  
+  backgroundAudio: HTMLAudioElement | null;
+  successAudio: HTMLAudioElement | null;
+  hitAudio: HTMLAudioElement | null;
+  
   isMuted: boolean;
   isUnlocked: boolean;
-  
-  // Background music state
-  bgOscillators: OscillatorNode[];
-  bgGains: GainNode[];
-  bgInterval: ReturnType<typeof setInterval> | null;
+  isAndroidDevice: boolean;
+  activeMusicPath: 'none' | 'webaudio' | 'html';
   
   initAudio: () => Promise<void>;
   unlockAudio: () => Promise<void>;
@@ -19,303 +31,324 @@ interface AudioState {
   stopBackgroundMusic: () => void;
 }
 
+async function loadAudioBuffer(context: AudioContext, url: string): Promise<AudioBuffer | null> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const arrayBuffer = await response.arrayBuffer();
+    
+    return new Promise((resolve) => {
+      context.decodeAudioData(
+        arrayBuffer,
+        (buffer) => resolve(buffer),
+        () => resolve(null)
+      );
+    });
+  } catch (e) {
+    return null;
+  }
+}
+
+function createAudioElement(url: string, loop: boolean, volume: number): HTMLAudioElement {
+  const audio = new Audio(url);
+  audio.loop = loop;
+  audio.volume = volume;
+  audio.preload = "auto";
+  audio.load();
+  return audio;
+}
+
 export const useAudio = create<AudioState>((set, get) => ({
   audioContext: null,
+  backgroundBuffer: null,
+  hitBuffer: null,
+  successBuffer: null,
+  backgroundSource: null,
+  
+  backgroundAudio: null,
+  successAudio: null,
+  hitAudio: null,
+  
   isMuted: false,
   isUnlocked: false,
-  bgOscillators: [],
-  bgGains: [],
-  bgInterval: null,
+  isAndroidDevice: false,
+  activeMusicPath: 'none',
   
   initAudio: async () => {
     const { audioContext } = get();
     if (audioContext) return;
     
-    console.log("Creating AudioContext...");
-    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContextClass) {
-      console.error("AudioContext not supported");
-      return;
-    }
+    const androidDevice = isAndroid();
+    console.log("Audio init - Android device:", androidDevice);
+    set({ isAndroidDevice: androidDevice });
     
-    const ctx = new AudioContextClass();
-    set({ audioContext: ctx });
-    console.log("AudioContext created, state:", ctx.state);
+    // Create HTMLAudioElements for all platforms (primary for Android, fallback for web)
+    const bgAudio = createAudioElement("/sounds/background.mp3", true, 0.3);
+    const successAudioEl = createAudioElement("/sounds/success.mp3", false, 0.7);
+    const hitAudioEl = createAudioElement("/sounds/hit.mp3", false, 0.5);
+    set({ backgroundAudio: bgAudio, successAudio: successAudioEl, hitAudio: hitAudioEl });
+    
+    // Only create Web Audio API for non-Android (or skip entirely on Android)
+    if (!androidDevice) {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioContextClass) {
+        // Use 44100 sample rate to match common audio file rates
+        const ctx = new AudioContextClass({ sampleRate: 44100 });
+        set({ audioContext: ctx });
+        
+        const [bgBuffer, hitBuffer, successBuffer] = await Promise.all([
+          loadAudioBuffer(ctx, "/sounds/background.mp3"),
+          loadAudioBuffer(ctx, "/sounds/hit.mp3"),
+          loadAudioBuffer(ctx, "/sounds/success.mp3"),
+        ]);
+        
+        set({ 
+          backgroundBuffer: bgBuffer,
+          hitBuffer: hitBuffer,
+          successBuffer: successBuffer,
+        });
+        
+        console.log("Web Audio buffers loaded:", { bg: !!bgBuffer, hit: !!hitBuffer, success: !!successBuffer });
+      }
+    } else {
+      console.log("Android detected - using HTMLAudioElement exclusively");
+    }
   },
   
   unlockAudio: async () => {
-    const { isUnlocked } = get();
+    const { isUnlocked, backgroundAudio, successAudio, hitAudio, audioContext, isAndroidDevice } = get();
     if (isUnlocked) return;
     
     console.log("Unlocking audio...");
     
-    let ctx = get().audioContext;
-    if (!ctx) {
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioContextClass) {
-        ctx = new AudioContextClass();
-        set({ audioContext: ctx });
-      }
+    // Resume AudioContext if exists (non-Android)
+    if (audioContext && audioContext.state === "suspended") {
+      try {
+        await audioContext.resume();
+      } catch (e) {}
     }
     
-    if (ctx && ctx.state === "suspended") {
+    // Unlock all HTML audio elements with muted play/pause
+    const unlockElement = async (audio: HTMLAudioElement | null) => {
+      if (!audio) return;
       try {
-        await ctx.resume();
-        console.log("AudioContext resumed, state:", ctx.state);
-      } catch (e) {
-        console.error("Failed to resume AudioContext:", e);
-      }
-    }
+        audio.muted = true;
+        await audio.play();
+        audio.pause();
+        audio.muted = false;
+        audio.currentTime = 0;
+      } catch (e) {}
+    };
     
-    // Play a silent tone to fully unlock
-    if (ctx) {
-      try {
-        const oscillator = ctx.createOscillator();
-        const gain = ctx.createGain();
-        gain.gain.value = 0.001;
-        oscillator.connect(gain);
-        gain.connect(ctx.destination);
-        oscillator.start();
-        oscillator.stop(ctx.currentTime + 0.1);
-        console.log("Silent unlock tone played");
-      } catch (e) {
-        console.error("Silent unlock error:", e);
-      }
-    }
+    await Promise.all([
+      unlockElement(backgroundAudio),
+      unlockElement(successAudio),
+      unlockElement(hitAudio),
+    ]);
     
     set({ isUnlocked: true });
-    console.log("Audio unlock complete");
+    console.log("Audio unlocked, isAndroid:", isAndroidDevice);
   },
   
   toggleMute: () => {
-    const { isMuted } = get();
+    const { isMuted, backgroundSource, backgroundAudio, activeMusicPath } = get();
     const newMutedState = !isMuted;
     set({ isMuted: newMutedState });
     
     if (newMutedState) {
-      get().stopBackgroundMusic();
+      // Stop all music
+      if (backgroundSource) {
+        try { backgroundSource.stop(); } catch (e) {}
+        set({ backgroundSource: null });
+      }
+      if (backgroundAudio) {
+        backgroundAudio.pause();
+        backgroundAudio.currentTime = 0;
+      }
+      set({ activeMusicPath: 'none' });
     }
   },
   
-  // Death/hit sound - synthesized beep (falling pitch)
   playHit: () => {
-    const { audioContext, isMuted } = get();
-    console.log("playHit called", { hasContext: !!audioContext, isMuted });
-    
+    const { audioContext, hitBuffer, hitAudio, isMuted, isAndroidDevice } = get();
     if (isMuted) return;
     
-    let ctx = audioContext;
-    if (!ctx) {
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioContextClass) {
-        ctx = new AudioContextClass();
-        set({ audioContext: ctx });
-      }
+    // On Android, use HTMLAudioElement
+    if (isAndroidDevice && hitAudio) {
+      try {
+        hitAudio.currentTime = 0;
+        hitAudio.play().catch(() => {});
+        console.log("Hit via HTMLAudio (Android)");
+        return;
+      } catch (e) {}
     }
     
-    if (!ctx) return;
+    // On web, try Web Audio API first with synthesized beep (more reliable)
+    if (audioContext) {
+      try {
+        if (audioContext.state === "suspended") {
+          audioContext.resume();
+        }
+        
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.type = "square";
+        oscillator.frequency.setValueAtTime(220, audioContext.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(55, audioContext.currentTime + 0.3);
+        
+        gainNode.gain.setValueAtTime(0.4, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.3);
+        return;
+      } catch (e) {}
+    }
     
-    try {
-      if (ctx.state === "suspended") {
-        ctx.resume();
-      }
-      
-      const oscillator = ctx.createOscillator();
-      const gainNode = ctx.createGain();
-      
-      oscillator.type = "square";
-      oscillator.frequency.setValueAtTime(220, ctx.currentTime);
-      oscillator.frequency.exponentialRampToValueAtTime(55, ctx.currentTime + 0.3);
-      
-      gainNode.gain.setValueAtTime(0.5, ctx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(ctx.destination);
-      
-      oscillator.start(ctx.currentTime);
-      oscillator.stop(ctx.currentTime + 0.3);
-      
-      console.log("Hit sound played (synthesized)");
-    } catch (e) {
-      console.error("Hit sound error:", e);
+    // Fallback to HTMLAudio
+    if (hitAudio) {
+      hitAudio.currentTime = 0;
+      hitAudio.play().catch(() => {});
     }
   },
   
-  // Success jingle - happy ascending notes (C5-E5-G5-C6)
   playSuccess: () => {
-    const { audioContext, isMuted } = get();
-    console.log("playSuccess called", { hasContext: !!audioContext, isMuted });
-    
+    const { audioContext, successBuffer, successAudio, isMuted, isAndroidDevice } = get();
     if (isMuted) return;
     
-    let ctx = audioContext;
-    if (!ctx) {
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioContextClass) {
-        ctx = new AudioContextClass();
-        set({ audioContext: ctx });
-      }
+    console.log("playSuccess - isAndroid:", isAndroidDevice);
+    
+    // On Android, use HTMLAudioElement exclusively
+    if (isAndroidDevice && successAudio) {
+      try {
+        successAudio.currentTime = 0;
+        successAudio.play().then(() => {
+          console.log("Success via HTMLAudio (Android)");
+        }).catch((e) => {
+          console.log("Success HTMLAudio failed:", e);
+        });
+        return;
+      } catch (e) {}
     }
     
-    if (!ctx) return;
+    // On web, use Web Audio API
+    if (audioContext && successBuffer) {
+      try {
+        if (audioContext.state === "suspended") {
+          audioContext.resume();
+        }
+        
+        const gainNode = audioContext.createGain();
+        gainNode.gain.value = 0.7;
+        gainNode.connect(audioContext.destination);
+        
+        const source = audioContext.createBufferSource();
+        source.buffer = successBuffer;
+        source.connect(gainNode);
+        source.start(0);
+        console.log("Success via WebAudio");
+        return;
+      } catch (e) {}
+    }
     
-    try {
-      if (ctx.state === "suspended") {
-        ctx.resume();
-      }
-      
-      const now = ctx.currentTime;
-      const notes = [
-        { freq: 523, start: 0, duration: 0.12 },      // C5
-        { freq: 659, start: 0.12, duration: 0.12 },   // E5
-        { freq: 784, start: 0.24, duration: 0.16 },   // G5
-        { freq: 1047, start: 0.36, duration: 0.2 },   // C6 (sparkle)
-      ];
-      
-      notes.forEach(note => {
-        const osc = ctx!.createOscillator();
-        const gain = ctx!.createGain();
-        
-        osc.type = note.start === 0.36 ? "sine" : "square";
-        osc.frequency.value = note.freq;
-        
-        gain.gain.setValueAtTime(0, now + note.start);
-        gain.gain.linearRampToValueAtTime(0.4, now + note.start + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + note.start + note.duration);
-        
-        osc.connect(gain);
-        gain.connect(ctx!.destination);
-        
-        osc.start(now + note.start);
-        osc.stop(now + note.start + note.duration + 0.05);
-      });
-      
-      console.log("Success jingle played (synthesized)");
-    } catch (e) {
-      console.error("Success sound error:", e);
+    // Fallback
+    if (successAudio) {
+      successAudio.currentTime = 0;
+      successAudio.play().catch(() => {});
     }
   },
   
-  // Background music - looping simple melody with bass
   playBackgroundMusic: () => {
     const state = get();
-    const { audioContext, isMuted, isUnlocked, bgInterval } = state;
-    console.log("playBackgroundMusic called", { hasContext: !!audioContext, isMuted, isUnlocked });
+    const { audioContext, backgroundBuffer, backgroundSource, backgroundAudio, isMuted, isUnlocked, isAndroidDevice, activeMusicPath } = state;
     
-    if (isMuted) {
-      console.log("Audio is muted");
-      return;
-    }
+    console.log("playBackgroundMusic - isAndroid:", isAndroidDevice, "activePath:", activeMusicPath);
+    
+    if (isMuted) return;
     
     if (!isUnlocked) {
-      console.log("Audio not unlocked yet, retrying in 300ms");
       setTimeout(() => get().playBackgroundMusic(), 300);
       return;
     }
     
-    // Stop any existing music
-    if (bgInterval) {
-      get().stopBackgroundMusic();
+    // Stop any existing music first to prevent double playback
+    if (backgroundSource) {
+      try { backgroundSource.stop(); } catch (e) {}
+      set({ backgroundSource: null });
+    }
+    if (backgroundAudio && activeMusicPath === 'html') {
+      backgroundAudio.pause();
+      backgroundAudio.currentTime = 0;
     }
     
-    let ctx = audioContext;
-    if (!ctx) {
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioContextClass) {
-        ctx = new AudioContextClass();
-        set({ audioContext: ctx });
+    // On Android, use ONLY HTMLAudioElement (no Web Audio)
+    if (isAndroidDevice) {
+      if (backgroundAudio) {
+        backgroundAudio.currentTime = 0;
+        backgroundAudio.play().then(() => {
+          console.log("Background music via HTMLAudio (Android) - EXCLUSIVE");
+          set({ activeMusicPath: 'html' });
+        }).catch((e) => {
+          console.log("Background HTMLAudio failed:", e);
+          // Retry once
+          setTimeout(() => {
+            if (!get().isMuted && backgroundAudio) {
+              backgroundAudio.play().catch(() => {});
+              set({ activeMusicPath: 'html' });
+            }
+          }, 500);
+        });
       }
+      return;
     }
     
-    if (!ctx) return;
+    // On web, use Web Audio API
+    if (audioContext && backgroundBuffer) {
+      try {
+        if (audioContext.state === "suspended") {
+          audioContext.resume();
+        }
+        
+        const gainNode = audioContext.createGain();
+        gainNode.gain.value = 0.3;
+        gainNode.connect(audioContext.destination);
+        
+        const source = audioContext.createBufferSource();
+        source.buffer = backgroundBuffer;
+        source.loop = true;
+        source.connect(gainNode);
+        source.start(0);
+        
+        set({ backgroundSource: source, activeMusicPath: 'webaudio' });
+        console.log("Background music via WebAudio");
+        return;
+      } catch (e) {}
+    }
     
-    try {
-      if (ctx.state === "suspended") {
-        ctx.resume();
-      }
-      
-      // Melody notes (simple happy tune)
-      const melodyNotes = [196, 220, 262, 294, 262, 220, 196, 220]; // G3, A3, C4, D4...
-      const bassNotes = [98, 110, 131, 110]; // G2, A2, C3, A2
-      
-      let melodyIndex = 0;
-      let bassIndex = 0;
-      let beatCount = 0;
-      
-      // Create persistent oscillators and gains
-      const melodyOsc = ctx.createOscillator();
-      const melodyGain = ctx.createGain();
-      const bassOsc = ctx.createOscillator();
-      const bassGain = ctx.createGain();
-      
-      melodyOsc.type = "square";
-      melodyOsc.frequency.value = melodyNotes[0];
-      melodyGain.gain.value = 0.08;
-      
-      bassOsc.type = "triangle";
-      bassOsc.frequency.value = bassNotes[0];
-      bassGain.gain.value = 0.1;
-      
-      melodyOsc.connect(melodyGain);
-      melodyGain.connect(ctx.destination);
-      bassOsc.connect(bassGain);
-      bassGain.connect(ctx.destination);
-      
-      melodyOsc.start();
-      bassOsc.start();
-      
-      // Step through notes
-      const interval = setInterval(() => {
-        const currentCtx = get().audioContext;
-        if (!currentCtx || get().isMuted) {
-          get().stopBackgroundMusic();
-          return;
-        }
-        
-        beatCount++;
-        
-        // Change melody every beat
-        melodyIndex = (melodyIndex + 1) % melodyNotes.length;
-        melodyOsc.frequency.setValueAtTime(melodyNotes[melodyIndex], currentCtx.currentTime);
-        
-        // Change bass every 2 beats
-        if (beatCount % 2 === 0) {
-          bassIndex = (bassIndex + 1) % bassNotes.length;
-          bassOsc.frequency.setValueAtTime(bassNotes[bassIndex], currentCtx.currentTime);
-        }
-        
-        // Add slight volume envelope for rhythm
-        melodyGain.gain.setValueAtTime(0.1, currentCtx.currentTime);
-        melodyGain.gain.linearRampToValueAtTime(0.06, currentCtx.currentTime + 0.15);
-      }, 250); // 240 BPM, quarter note = 250ms
-      
-      set({ 
-        bgOscillators: [melodyOsc, bassOsc], 
-        bgGains: [melodyGain, bassGain],
-        bgInterval: interval 
-      });
-      
-      console.log("Background music started (synthesized)");
-    } catch (e) {
-      console.error("Background music error:", e);
+    // Fallback for web if Web Audio fails
+    if (backgroundAudio) {
+      backgroundAudio.currentTime = 0;
+      backgroundAudio.play().then(() => {
+        set({ activeMusicPath: 'html' });
+      }).catch(() => {});
     }
   },
   
   stopBackgroundMusic: () => {
-    const { bgOscillators, bgInterval } = get();
+    const { backgroundSource, backgroundAudio, activeMusicPath } = get();
     
-    if (bgInterval) {
-      clearInterval(bgInterval);
+    if (backgroundSource) {
+      try { backgroundSource.stop(); } catch (e) {}
+      set({ backgroundSource: null });
     }
-    
-    bgOscillators.forEach(osc => {
-      try {
-        osc.stop();
-      } catch (e) {}
-    });
-    
-    set({ bgOscillators: [], bgGains: [], bgInterval: null });
-    console.log("Background music stopped");
+    if (backgroundAudio) {
+      backgroundAudio.pause();
+      backgroundAudio.currentTime = 0;
+    }
+    set({ activeMusicPath: 'none' });
   }
 }));
